@@ -46,7 +46,7 @@ if __name__ == "__main__":
     })
 
     # Load the saved parameter trajectory
-    param_traj = np.load("saved_trajectory/param_trajectory_cartpole_mlp.npy")
+    param_traj = np.load("saved_trajectory_re/param_trajectory_cartpole_mlp.npy")
     state_dim = param_traj.shape[1]
     dataset_traj = DataLoader(TensorDataset(torch.tensor(param_traj, dtype=torch.float32).to(device)), batch_size=batch_size, shuffle=False)
 
@@ -85,5 +85,5 @@ if __name__ == "__main__":
             wandb.log({"loss_kae": loss_kae.item(), 'grad_norm': grad_norm}, step=epoch)
 
     # Save the trained Koopman Autoencoder
-    kae.save("saved_models/KAEs/kae_cartpole_mlp.pt")
+    kae.save("saved_models_re/KAEs/kae_cartpole_mlp.pt")
     wandb.finish()

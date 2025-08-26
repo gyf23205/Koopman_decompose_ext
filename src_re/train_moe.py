@@ -81,7 +81,7 @@ if __name__ == "__main__":
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.n
 
-    kae = KoopmanAutoencoder(load=True, load_path="saved_models/KAEs/kae_cartpole_mlp.pt").to(device)
+    kae = KoopmanAutoencoder(load=True, load_path="saved_models_re/KAEs/kae_cartpole_mlp.pt").to(device)
     kae.eval()
 
     # Hyperparameters
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     batch_size = 64
     clip_epsilon = 0.2
     n_dom_modes = 32
-    params_traj = torch.tensor(np.load("saved_trajectory/param_trajectory_cartpole_mlp.npy"), device=device, dtype=torch.float32)
+    params_traj = torch.tensor(np.load("saved_trajectory_re/param_trajectory_cartpole_mlp.npy"), device=device, dtype=torch.float32)
     x_hat, z, z_pred = kae(params_traj)
     N_O = z.shape[-1]
     param_sub_all, eigvals = compute_theta_sub_all(kae, z, kae.K)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     policy_net.eval()
     model_shape, param_shapes = extract_model_structure_and_shapes(policy_net)
     value_net = ValueMLP(obs_dim).to(device)
-    value_net.load_state_dict(torch.load("saved_models/originals/ppo_cartpole_value.pt", map_location=device), strict=False)
+    value_net.load_state_dict(torch.load("saved_models_re/originals/ppo_cartpole_value.pt", map_location=device), strict=False)
     # Add "model." before all parameter names
     state_dict = value_net.state_dict()
     new_state_dict = {}
@@ -159,4 +159,4 @@ if __name__ == "__main__":
         wandb.log({"Learning Rate": schelduler.get_last_lr()[0]})
 
     # Save MoE model
-    torch.save(moe.state_dict(), "saved_models/MoEs/moe_cartpole_mlp.pt")
+    torch.save(moe.state_dict(), "saved_models_re/MoEs/moe_cartpole_mlp.pt")

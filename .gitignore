@@ -1,4 +1,5 @@
 playground**
+wandb/
 /KAE/results/**
 /KAE/waypoints/** 
 /KAE/data/**
