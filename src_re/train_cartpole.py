@@ -38,7 +38,8 @@ def collect_trajectory(env, step_rollout):
     timesteps = 0
     while timesteps < step_rollout:
         action, log_prob, dist = select_action(obs, policy_net, device)
-        value = value_net(torch.tensor(obs, dtype=torch.float32)).item()
+        # Move obs to the same device as value_net
+        value = value_net(torch.tensor(obs, dtype=torch.float32).to(device)).item()
         next_obs, reward, terminated, truncated, info = env.step(action)
         done = terminated or truncated
 
@@ -93,15 +94,15 @@ if __name__ == "__main__":
     params_trajectory = []
     for _ in tqdm.tqdm(range(ppo_epochs), desc="Training Original Policy"):
         # Collect trajectory
-        obs_buf, act_buf, logp_buf, rew_buf, done_buf, val_buf, obs = collect_trajectory(env, step_rollout, value_net, policy_net, device)
+        obs_buf, act_buf, logp_buf, rew_buf, done_buf, val_buf, obs = collect_trajectory(env, step_rollout)
 
         # Process trajectory
         dataset = process_trajectory(
-            value_net, obs_buf, act_buf, logp_buf, rew_buf, done_buf, val_buf, obs
+            value_net, obs_buf, act_buf, logp_buf, rew_buf, done_buf, val_buf, obs, device
         )
 
         # PPO update
-        ppo_update(dataset, update_epochs, batch_size, policy_net, value_net, policy_optimizer, value_optimizer, clip_epsilon)
+        ppo_update(dataset, update_epochs, batch_size)
 
         # Save parameters
         params_trajectory.append(parameters_to_vector(policy_net.parameters()).detach().cpu().numpy())
