@@ -1,0 +1,13 @@
+
+Tanh ver
+Training:   0%|                                                                                                                                                                           | 0/20 [00:00<?, ?it/s]/home/yifan/git/Koopman_decompose_ext/src/models/Autoencoder.py:63: UserWarning: The use of `x.T` on tensors of dimension other than 2 to reverse their shape is deprecated and it will throw an error in a future release. Consider `x.mT` to transpose batches of matrices or `x.permute(*torch.arange(x.ndim - 1, -1, -1))` to reverse the dimensions of a tensor. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:3725.)
+  self.K = torch.matmul(latent_Y.T, X_pseudo_inv.T)  # K = Y * X^+
+Training:   0%|                                                                                                                                                                           | 0/20 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/yifan/git/Koopman_decompose_ext/src/train_koop.py", line 76, in <module>
+    loss_kae, z = compute_l_kae(kae, params, c1, c2, c3, p, device) # Koopman operator is updated here.
+  File "/home/yifan/git/Koopman_decompose_ext/src/models/Autoencoder_functions.py", line 86, in compute_l_kae
+    kae.compute_koopman_operator(latents, latents_next)
+  File "/home/yifan/git/Koopman_decompose_ext/src/models/Autoencoder.py", line 63, in compute_koopman_operator
+    self.K = torch.matmul(latent_Y.T, X_pseudo_inv.T)  # K = Y * X^+
+RuntimeError: Expected size for first two dimensions of batch2 tensor to be: [64, 0] but got: [64, 64].

@@ -1,0 +1,6 @@
+
+Tanh ver
+Traceback (most recent call last):
+  File "/home/yifan/git/Koopman_decompose_ext/src/train_koop.py", line 66, in <module>
+    for epoch in (tq_var := tqdm(range(num_epochs), desc="Training")):
+TypeError: 'module' object is not callable

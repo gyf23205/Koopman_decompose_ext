@@ -1,0 +1,30 @@
+2025-08-22 12:51:47,086 INFO    MainThread:3775591 [wandb_setup.py:_flush():76] Current SDK version is 0.17.5
+2025-08-22 12:51:47,086 INFO    MainThread:3775591 [wandb_setup.py:_flush():76] Configure stats pid to 3775591
+2025-08-22 12:51:47,086 INFO    MainThread:3775591 [wandb_setup.py:_flush():76] Loading settings from /home/yifan/.config/wandb/settings
+2025-08-22 12:51:47,086 INFO    MainThread:3775591 [wandb_setup.py:_flush():76] Loading settings from /home/yifan/git/Koopman_decompose_ext/wandb/settings
+2025-08-22 12:51:47,086 INFO    MainThread:3775591 [wandb_setup.py:_flush():76] Loading settings from environment variables: {}
+2025-08-22 12:51:47,086 INFO    MainThread:3775591 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program_relpath': 'src/train_moe.py', 'program_abspath': '/home/yifan/git/Koopman_decompose_ext/src/train_moe.py', 'program': '/home/yifan/git/Koopman_decompose_ext/src/train_moe.py'}
+2025-08-22 12:51:47,086 INFO    MainThread:3775591 [wandb_setup.py:_flush():76] Applying login settings: {'api_key': '***REDACTED***'}
+2025-08-22 12:51:47,086 INFO    MainThread:3775591 [wandb_setup.py:_flush():76] Applying login settings: {'api_key': '***REDACTED***'}
+2025-08-22 12:51:47,086 INFO    MainThread:3775591 [wandb_setup.py:_flush():76] Applying login settings: {}
+2025-08-22 12:51:47,087 INFO    MainThread:3775591 [wandb_init.py:_log_setup():529] Logging user logs to /home/yifan/git/Koopman_decompose_ext/wandb/run-20250822_125147-mr0cjq08/logs/debug.log
+2025-08-22 12:51:47,087 INFO    MainThread:3775591 [wandb_init.py:_log_setup():530] Logging internal logs to /home/yifan/git/Koopman_decompose_ext/wandb/run-20250822_125147-mr0cjq08/logs/debug-internal.log
+2025-08-22 12:51:47,087 INFO    MainThread:3775591 [wandb_init.py:init():569] calling init triggers
+2025-08-22 12:51:47,087 INFO    MainThread:3775591 [wandb_init.py:init():576] wandb.init called with sweep_config: {}
+config: {'learning_rate': 0.0003, 'ppo_epochs': 500, 'step_rollout': 128, 'update_epochs': 10, 'batch_size': 64, 'clip_epsilon': 0.2, 'n_dom_modes': 32}
+2025-08-22 12:51:47,087 INFO    MainThread:3775591 [wandb_init.py:init():619] starting backend
+2025-08-22 12:51:47,087 INFO    MainThread:3775591 [wandb_init.py:init():623] setting up manager
+2025-08-22 12:51:47,087 INFO    MainThread:3775591 [backend.py:_multiprocessing_setup():105] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-08-22 12:51:47,088 INFO    MainThread:3775591 [wandb_init.py:init():631] backend started and connected
+2025-08-22 12:51:47,089 INFO    MainThread:3775591 [wandb_init.py:init():720] updated telemetry
+2025-08-22 12:51:47,089 INFO    MainThread:3775591 [wandb_init.py:init():753] communicating run to backend with 90.0 second timeout
+2025-08-22 12:51:47,334 INFO    MainThread:3775591 [wandb_run.py:_on_init():2435] communicating current version
+2025-08-22 12:51:47,401 INFO    MainThread:3775591 [wandb_run.py:_on_init():2444] got version response upgrade_message: "wandb version 0.21.1 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+
+2025-08-22 12:51:47,401 INFO    MainThread:3775591 [wandb_init.py:init():804] starting run threads in backend
+2025-08-22 12:51:49,046 INFO    MainThread:3775591 [wandb_run.py:_console_start():2413] atexit reg
+2025-08-22 12:51:49,046 INFO    MainThread:3775591 [wandb_run.py:_redirect():2255] redirect: wrap_raw
+2025-08-22 12:51:49,046 INFO    MainThread:3775591 [wandb_run.py:_redirect():2320] Wrapping output streams.
+2025-08-22 12:51:49,046 INFO    MainThread:3775591 [wandb_run.py:_redirect():2345] Redirects installed.
+2025-08-22 12:51:49,047 INFO    MainThread:3775591 [wandb_init.py:init():847] run started, returning control to user process
+2025-08-22 12:59:54,356 WARNING MsgRouterThr:3775591 [router.py:message_loop():77] message_loop has been closed

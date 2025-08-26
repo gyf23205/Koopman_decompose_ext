@@ -1,0 +1,181 @@
+2025-08-18 15:00:40,502 INFO    StreamThr :3566374 [internal.py:wandb_internal():85] W&B internal server running at pid: 3566374, started at: 2025-08-18 15:00:40.501723
+2025-08-18 15:00:40,503 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: status
+2025-08-18 15:00:40,504 INFO    WriterThread:3566374 [datastore.py:open_for_write():87] open: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/run-068gjsze.wandb
+2025-08-18 15:00:40,505 DEBUG   SenderThread:3566374 [sender.py:send():379] send: header
+2025-08-18 15:00:40,505 DEBUG   SenderThread:3566374 [sender.py:send():379] send: run
+2025-08-18 15:00:40,870 INFO    SenderThread:3566374 [dir_watcher.py:__init__():211] watching files in: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files
+2025-08-18 15:00:40,870 INFO    SenderThread:3566374 [sender.py:_start_run_threads():1188] run started: 068gjsze with start time 1755543640.501646
+2025-08-18 15:00:40,874 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: check_version
+2025-08-18 15:00:40,874 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: check_version
+2025-08-18 15:00:40,940 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: run_start
+2025-08-18 15:00:40,946 DEBUG   HandlerThread:3566374 [system_info.py:__init__():26] System info init
+2025-08-18 15:00:40,946 DEBUG   HandlerThread:3566374 [system_info.py:__init__():41] System info init done
+2025-08-18 15:00:40,946 INFO    HandlerThread:3566374 [system_monitor.py:start():194] Starting system monitor
+2025-08-18 15:00:40,946 INFO    SystemMonitor:3566374 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2025-08-18 15:00:40,946 INFO    HandlerThread:3566374 [system_monitor.py:probe():214] Collecting system info
+2025-08-18 15:00:40,947 INFO    SystemMonitor:3566374 [interfaces.py:start():188] Started cpu monitoring
+2025-08-18 15:00:40,947 INFO    SystemMonitor:3566374 [interfaces.py:start():188] Started disk monitoring
+2025-08-18 15:00:40,947 INFO    SystemMonitor:3566374 [interfaces.py:start():188] Started gpu monitoring
+2025-08-18 15:00:40,948 INFO    SystemMonitor:3566374 [interfaces.py:start():188] Started memory monitoring
+2025-08-18 15:00:40,948 INFO    SystemMonitor:3566374 [interfaces.py:start():188] Started network monitoring
+2025-08-18 15:00:40,954 DEBUG   HandlerThread:3566374 [system_info.py:probe():152] Probing system
+2025-08-18 15:00:40,958 DEBUG   HandlerThread:3566374 [gitlib.py:_init_repo():56] git repository is invalid
+2025-08-18 15:00:40,958 DEBUG   HandlerThread:3566374 [system_info.py:probe():200] Probing system done
+2025-08-18 15:00:40,958 DEBUG   HandlerThread:3566374 [system_monitor.py:probe():223] {'os': 'Linux-6.8.0-59-generic-x86_64-with-glibc2.35', 'python': '3.9.18', 'heartbeatAt': '2025-08-18T19:00:40.954868', 'startedAt': '2025-08-18T19:00:40.499524', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': '/home/yifan/git/Koopman_decompose_ext/src/train_koop.py', 'codePathLocal': 'src/train_koop.py', 'codePath': 'src/train_koop.py', 'host': 'isengard', 'username': 'yifan', 'executable': '/home/yifan/anaconda3/envs/Koop/bin/python', 'cpu_count': 16, 'cpu_count_logical': 24, 'cpu_freq': {'current': 2.604458333333333, 'min': 800.0, 'max': 4716.666666666667}, 'cpu_freq_per_core': [{'current': 3.395, 'min': 800.0, 'max': 5100.0}, {'current': 0.8, 'min': 800.0, 'max': 5100.0}, {'current': 0.8, 'min': 800.0, 'max': 5100.0}, {'current': 4.9, 'min': 800.0, 'max': 5100.0}, {'current': 4.773, 'min': 800.0, 'max': 5100.0}, {'current': 0.8, 'min': 800.0, 'max': 5100.0}, {'current': 2.354, 'min': 800.0, 'max': 5100.0}, {'current': 0.8, 'min': 800.0, 'max': 5100.0}, {'current': 1.79, 'min': 800.0, 'max': 5200.0}, {'current': 2.644, 'min': 800.0, 'max': 5200.0}, {'current': 0.798, 'min': 800.0, 'max': 5100.0}, {'current': 0.8, 'min': 800.0, 'max': 5100.0}, {'current': 0.802, 'min': 800.0, 'max': 5200.0}, {'current': 4.704, 'min': 800.0, 'max': 5200.0}, {'current': 4.9, 'min': 800.0, 'max': 5100.0}, {'current': 0.8, 'min': 800.0, 'max': 5100.0}, {'current': 3.64, 'min': 800.0, 'max': 3900.0}, {'current': 2.446, 'min': 800.0, 'max': 3900.0}, {'current': 1.783, 'min': 800.0, 'max': 3900.0}, {'current': 2.386, 'min': 800.0, 'max': 3900.0}, {'current': 3.9, 'min': 800.0, 'max': 3900.0}, {'current': 3.658, 'min': 800.0, 'max': 3900.0}, {'current': 1.276, 'min': 800.0, 'max': 3900.0}, {'current': 3.684, 'min': 800.0, 'max': 3900.0}], 'disk': {'/': {'total': 1832.2072448730469, 'used': 1684.0510330200195}}, 'gpu': 'NVIDIA GeForce RTX 3090 Ti', 'gpu_count': 1, 'gpu_devices': [{'name': 'NVIDIA GeForce RTX 3090 Ti', 'memory_total': 25757220864}], 'memory': {'total': 125.54043197631836}}
+2025-08-18 15:00:40,958 INFO    HandlerThread:3566374 [system_monitor.py:probe():224] Finished collecting system info
+2025-08-18 15:00:40,958 INFO    HandlerThread:3566374 [system_monitor.py:probe():227] Publishing system info
+2025-08-18 15:00:40,959 DEBUG   HandlerThread:3566374 [system_info.py:_save_conda():209] Saving list of conda packages installed into the current environment
+2025-08-18 15:00:41,871 INFO    Thread-12 :3566374 [dir_watcher.py:_on_file_created():271] file/dir created: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/conda-environment.yaml
+2025-08-18 15:00:42,628 DEBUG   HandlerThread:3566374 [system_info.py:_save_conda():224] Saving conda packages done
+2025-08-18 15:00:42,629 INFO    HandlerThread:3566374 [system_monitor.py:probe():229] Finished publishing system info
+2025-08-18 15:00:42,631 DEBUG   SenderThread:3566374 [sender.py:send():379] send: files
+2025-08-18 15:00:42,631 INFO    SenderThread:3566374 [sender.py:_save_file():1454] saving file wandb-metadata.json with policy now
+2025-08-18 15:00:42,677 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: python_packages
+2025-08-18 15:00:42,678 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: stop_status
+2025-08-18 15:00:42,678 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: python_packages
+2025-08-18 15:00:42,678 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: internal_messages
+2025-08-18 15:00:42,678 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: stop_status
+2025-08-18 15:00:42,871 DEBUG   SenderThread:3566374 [sender.py:send():379] send: telemetry
+2025-08-18 15:00:42,872 INFO    Thread-12 :3566374 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/conda-environment.yaml
+2025-08-18 15:00:42,872 INFO    Thread-12 :3566374 [dir_watcher.py:_on_file_created():271] file/dir created: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/wandb-metadata.json
+2025-08-18 15:00:42,872 INFO    Thread-12 :3566374 [dir_watcher.py:_on_file_created():271] file/dir created: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/requirements.txt
+2025-08-18 15:00:42,872 INFO    Thread-12 :3566374 [dir_watcher.py:_on_file_created():271] file/dir created: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/output.log
+2025-08-18 15:00:43,091 INFO    wandb-upload_0:3566374 [upload_job.py:push():130] Uploaded file /tmp/tmpf4qzh7powandb/94ntg8m6-wandb-metadata.json
+2025-08-18 15:00:43,189 DEBUG   SenderThread:3566374 [sender.py:send():379] send: exit
+2025-08-18 15:00:43,189 INFO    SenderThread:3566374 [sender.py:send_exit():586] handling exit code: 1
+2025-08-18 15:00:43,189 INFO    SenderThread:3566374 [sender.py:send_exit():588] handling runtime: 2
+2025-08-18 15:00:43,189 INFO    SenderThread:3566374 [sender.py:_save_file():1454] saving file wandb-summary.json with policy end
+2025-08-18 15:00:43,189 INFO    SenderThread:3566374 [sender.py:send_exit():594] send defer
+2025-08-18 15:00:43,190 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:43,190 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 0
+2025-08-18 15:00:43,190 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:43,190 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 0
+2025-08-18 15:00:43,191 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 1
+2025-08-18 15:00:43,191 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:43,191 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 1
+2025-08-18 15:00:43,191 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:43,191 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 1
+2025-08-18 15:00:43,191 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 2
+2025-08-18 15:00:43,191 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:43,191 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 2
+2025-08-18 15:00:43,191 INFO    HandlerThread:3566374 [system_monitor.py:finish():203] Stopping system monitor
+2025-08-18 15:00:43,191 INFO    HandlerThread:3566374 [interfaces.py:finish():200] Joined cpu monitor
+2025-08-18 15:00:43,191 INFO    HandlerThread:3566374 [interfaces.py:finish():200] Joined disk monitor
+2025-08-18 15:00:43,192 DEBUG   SystemMonitor:3566374 [system_monitor.py:_start():172] Starting system metrics aggregation loop
+2025-08-18 15:00:43,192 DEBUG   SystemMonitor:3566374 [system_monitor.py:_start():179] Finished system metrics aggregation loop
+2025-08-18 15:00:43,192 DEBUG   SystemMonitor:3566374 [system_monitor.py:_start():183] Publishing last batch of metrics
+2025-08-18 15:00:43,240 INFO    HandlerThread:3566374 [interfaces.py:finish():200] Joined gpu monitor
+2025-08-18 15:00:43,241 INFO    HandlerThread:3566374 [interfaces.py:finish():200] Joined memory monitor
+2025-08-18 15:00:43,241 INFO    HandlerThread:3566374 [interfaces.py:finish():200] Joined network monitor
+2025-08-18 15:00:43,241 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:43,241 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 2
+2025-08-18 15:00:43,241 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 3
+2025-08-18 15:00:43,241 DEBUG   SenderThread:3566374 [sender.py:send():379] send: stats
+2025-08-18 15:00:43,241 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:43,241 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 3
+2025-08-18 15:00:43,241 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:43,241 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 3
+2025-08-18 15:00:43,241 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 4
+2025-08-18 15:00:43,241 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:43,241 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 4
+2025-08-18 15:00:43,242 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:43,242 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 4
+2025-08-18 15:00:43,242 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 5
+2025-08-18 15:00:43,242 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:43,242 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 5
+2025-08-18 15:00:43,242 DEBUG   SenderThread:3566374 [sender.py:send():379] send: summary
+2025-08-18 15:00:43,242 INFO    SenderThread:3566374 [sender.py:_save_file():1454] saving file wandb-summary.json with policy end
+2025-08-18 15:00:43,242 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:43,242 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 5
+2025-08-18 15:00:43,242 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 6
+2025-08-18 15:00:43,242 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:43,242 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 6
+2025-08-18 15:00:43,242 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:43,242 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 6
+2025-08-18 15:00:43,244 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: status_report
+2025-08-18 15:00:43,341 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 7
+2025-08-18 15:00:43,341 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:43,341 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 7
+2025-08-18 15:00:43,341 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:43,341 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 7
+2025-08-18 15:00:43,872 INFO    Thread-12 :3566374 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/config.yaml
+2025-08-18 15:00:43,872 INFO    Thread-12 :3566374 [dir_watcher.py:_on_file_created():271] file/dir created: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/wandb-summary.json
+2025-08-18 15:00:44,189 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: poll_exit
+2025-08-18 15:00:45,192 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 8
+2025-08-18 15:00:45,192 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: poll_exit
+2025-08-18 15:00:45,192 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:45,192 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 8
+2025-08-18 15:00:45,193 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:45,193 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 8
+2025-08-18 15:00:45,193 INFO    SenderThread:3566374 [job_builder.py:build():440] Attempting to build job artifact
+2025-08-18 15:00:45,193 INFO    SenderThread:3566374 [job_builder.py:_get_source_type():580] no source found
+2025-08-18 15:00:45,193 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 9
+2025-08-18 15:00:45,193 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:45,193 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 9
+2025-08-18 15:00:45,193 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:45,193 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 9
+2025-08-18 15:00:45,193 INFO    SenderThread:3566374 [dir_watcher.py:finish():358] shutting down directory watcher
+2025-08-18 15:00:45,872 INFO    Thread-12 :3566374 [dir_watcher.py:_on_file_modified():288] file/dir modified: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/output.log
+2025-08-18 15:00:45,873 INFO    SenderThread:3566374 [dir_watcher.py:finish():388] scan: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files
+2025-08-18 15:00:45,873 INFO    SenderThread:3566374 [dir_watcher.py:finish():402] scan save: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/conda-environment.yaml conda-environment.yaml
+2025-08-18 15:00:45,873 INFO    SenderThread:3566374 [dir_watcher.py:finish():402] scan save: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/requirements.txt requirements.txt
+2025-08-18 15:00:45,873 INFO    SenderThread:3566374 [dir_watcher.py:finish():402] scan save: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/wandb-summary.json wandb-summary.json
+2025-08-18 15:00:45,875 INFO    SenderThread:3566374 [dir_watcher.py:finish():402] scan save: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/config.yaml config.yaml
+2025-08-18 15:00:45,875 INFO    SenderThread:3566374 [dir_watcher.py:finish():402] scan save: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/output.log output.log
+2025-08-18 15:00:45,875 INFO    SenderThread:3566374 [dir_watcher.py:finish():402] scan save: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/wandb-metadata.json wandb-metadata.json
+2025-08-18 15:00:45,875 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 10
+2025-08-18 15:00:45,875 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:45,875 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 10
+2025-08-18 15:00:45,875 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:45,875 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 10
+2025-08-18 15:00:45,875 INFO    SenderThread:3566374 [file_pusher.py:finish():169] shutting down file pusher
+2025-08-18 15:00:46,157 INFO    wandb-upload_0:3566374 [upload_job.py:push():130] Uploaded file /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/conda-environment.yaml
+2025-08-18 15:00:46,189 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: poll_exit
+2025-08-18 15:00:46,190 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: poll_exit
+2025-08-18 15:00:46,232 INFO    wandb-upload_1:3566374 [upload_job.py:push():130] Uploaded file /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/requirements.txt
+2025-08-18 15:00:46,297 INFO    wandb-upload_4:3566374 [upload_job.py:push():130] Uploaded file /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/output.log
+2025-08-18 15:00:46,331 INFO    wandb-upload_3:3566374 [upload_job.py:push():130] Uploaded file /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/config.yaml
+2025-08-18 15:00:46,343 INFO    wandb-upload_2:3566374 [upload_job.py:push():130] Uploaded file /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/files/wandb-summary.json
+2025-08-18 15:00:46,543 INFO    Thread-11 :3566374 [sender.py:transition_state():614] send defer: 11
+2025-08-18 15:00:46,544 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:46,544 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 11
+2025-08-18 15:00:46,544 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:46,544 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 11
+2025-08-18 15:00:46,544 INFO    SenderThread:3566374 [file_pusher.py:join():175] waiting for file pusher
+2025-08-18 15:00:46,544 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 12
+2025-08-18 15:00:46,544 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:46,544 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 12
+2025-08-18 15:00:46,544 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:46,544 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 12
+2025-08-18 15:00:46,544 INFO    SenderThread:3566374 [file_stream.py:finish():601] file stream finish called
+2025-08-18 15:00:46,625 INFO    SenderThread:3566374 [file_stream.py:finish():605] file stream finish is done
+2025-08-18 15:00:46,625 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 13
+2025-08-18 15:00:46,625 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:46,625 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 13
+2025-08-18 15:00:46,625 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:46,625 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 13
+2025-08-18 15:00:46,626 INFO    SenderThread:3566374 [sender.py:transition_state():614] send defer: 14
+2025-08-18 15:00:46,626 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: defer
+2025-08-18 15:00:46,626 INFO    HandlerThread:3566374 [handler.py:handle_request_defer():184] handle defer: 14
+2025-08-18 15:00:46,626 DEBUG   SenderThread:3566374 [sender.py:send():379] send: final
+2025-08-18 15:00:46,626 DEBUG   SenderThread:3566374 [sender.py:send():379] send: footer
+2025-08-18 15:00:46,626 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: defer
+2025-08-18 15:00:46,626 INFO    SenderThread:3566374 [sender.py:send_request_defer():610] handle sender defer: 14
+2025-08-18 15:00:46,626 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: poll_exit
+2025-08-18 15:00:46,627 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: poll_exit
+2025-08-18 15:00:46,627 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: server_info
+2025-08-18 15:00:46,627 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: poll_exit
+2025-08-18 15:00:46,627 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: get_summary
+2025-08-18 15:00:46,627 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: sampled_history
+2025-08-18 15:00:46,627 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: server_info
+2025-08-18 15:00:46,628 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: internal_messages
+2025-08-18 15:00:46,669 DEBUG   SenderThread:3566374 [sender.py:send_request():406] send_request: poll_exit
+2025-08-18 15:00:46,670 INFO    MainThread:3566374 [wandb_run.py:_footer_history_summary_info():4016] rendering history
+2025-08-18 15:00:46,670 INFO    MainThread:3566374 [wandb_run.py:_footer_history_summary_info():4048] rendering summary
+2025-08-18 15:00:46,670 INFO    MainThread:3566374 [wandb_run.py:_footer_sync_info():3975] logging synced files
+2025-08-18 15:00:46,670 DEBUG   HandlerThread:3566374 [handler.py:handle_request():158] handle_request: shutdown
+2025-08-18 15:00:46,670 INFO    HandlerThread:3566374 [handler.py:finish():882] shutting down handler
+2025-08-18 15:00:47,627 INFO    WriterThread:3566374 [datastore.py:close():296] close: /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_150040-068gjsze/run-068gjsze.wandb
+2025-08-18 15:00:47,670 INFO    SenderThread:3566374 [sender.py:finish():1615] shutting down sender
+2025-08-18 15:00:47,670 INFO    SenderThread:3566374 [file_pusher.py:finish():169] shutting down file pusher
+2025-08-18 15:00:47,670 INFO    SenderThread:3566374 [file_pusher.py:join():175] waiting for file pusher

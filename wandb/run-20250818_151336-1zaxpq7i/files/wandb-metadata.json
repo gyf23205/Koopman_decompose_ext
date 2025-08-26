@@ -1,0 +1,162 @@
+{
+    "os": "Linux-6.8.0-59-generic-x86_64-with-glibc2.35",
+    "python": "3.9.18",
+    "heartbeatAt": "2025-08-18T19:13:37.060219",
+    "startedAt": "2025-08-18T19:13:36.694812",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/home/yifan/git/Koopman_decompose_ext/src/train_koop.py",
+    "codePathLocal": "src/train_koop.py",
+    "codePath": "src/train_koop.py",
+    "host": "isengard",
+    "username": "yifan",
+    "executable": "/home/yifan/anaconda3/envs/Koop/bin/python",
+    "cpu_count": 16,
+    "cpu_count_logical": 24,
+    "cpu_freq": {
+        "current": 2.7448333333333337,
+        "min": 800.0,
+        "max": 4716.666666666667
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 1.22,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 0.801,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 4.9,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 4.9,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 4.859,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 0.8,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 2.003,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 0.8,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 2.98,
+            "min": 800.0,
+            "max": 5200.0
+        },
+        {
+            "current": 3.678,
+            "min": 800.0,
+            "max": 5200.0
+        },
+        {
+            "current": 4.9,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 1.527,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 0.8,
+            "min": 800.0,
+            "max": 5200.0
+        },
+        {
+            "current": 4.638,
+            "min": 800.0,
+            "max": 5200.0
+        },
+        {
+            "current": 0.8,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 0.8,
+            "min": 800.0,
+            "max": 5100.0
+        },
+        {
+            "current": 3.208,
+            "min": 800.0,
+            "max": 3900.0
+        },
+        {
+            "current": 2.841,
+            "min": 800.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3.863,
+            "min": 800.0,
+            "max": 3900.0
+        },
+        {
+            "current": 0.8,
+            "min": 800.0,
+            "max": 3900.0
+        },
+        {
+            "current": 0.801,
+            "min": 800.0,
+            "max": 3900.0
+        },
+        {
+            "current": 0.799,
+            "min": 800.0,
+            "max": 3900.0
+        },
+        {
+            "current": 3.305,
+            "min": 800.0,
+            "max": 3900.0
+        },
+        {
+            "current": 0.8,
+            "min": 800.0,
+            "max": 3900.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 1832.2072448730469,
+            "used": 1684.09086227417
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 3090 Ti",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 3090 Ti",
+            "memory_total": 25757220864
+        }
+    ],
+    "memory": {
+        "total": 125.54043197631836
+    }
+}

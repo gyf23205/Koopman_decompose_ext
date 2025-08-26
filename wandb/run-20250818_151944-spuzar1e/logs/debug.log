@@ -1,0 +1,36 @@
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_setup.py:_flush():76] Current SDK version is 0.17.5
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_setup.py:_flush():76] Configure stats pid to 3575120
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_setup.py:_flush():76] Loading settings from /home/yifan/.config/wandb/settings
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_setup.py:_flush():76] Loading settings from /home/yifan/git/Koopman_decompose_ext/wandb/settings
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_setup.py:_flush():76] Loading settings from environment variables: {}
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program_relpath': 'src/train_koop.py', 'program_abspath': '/home/yifan/git/Koopman_decompose_ext/src/train_koop.py', 'program': '/home/yifan/git/Koopman_decompose_ext/src/train_koop.py'}
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_setup.py:_flush():76] Applying login settings: {'api_key': '***REDACTED***'}
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_setup.py:_flush():76] Applying login settings: {'api_key': '***REDACTED***'}
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_setup.py:_flush():76] Applying login settings: {}
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_init.py:_log_setup():529] Logging user logs to /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_151944-spuzar1e/logs/debug.log
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_init.py:_log_setup():530] Logging internal logs to /home/yifan/git/Koopman_decompose_ext/wandb/run-20250818_151944-spuzar1e/logs/debug-internal.log
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_init.py:init():569] calling init triggers
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_init.py:init():576] wandb.init called with sweep_config: {}
+config: {'num_epochs': 20, 'lr_kae': 1e-05, 'c1': 1, 'c2': 1, 'c3': 1, 'batch_size': 64, 'hidden_dim': 64, 'p': 5}
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_init.py:init():619] starting backend
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [wandb_init.py:init():623] setting up manager
+2025-08-18 15:19:44,007 INFO    MainThread:3575120 [backend.py:_multiprocessing_setup():105] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-08-18 15:19:44,008 INFO    MainThread:3575120 [wandb_init.py:init():631] backend started and connected
+2025-08-18 15:19:44,009 INFO    MainThread:3575120 [wandb_init.py:init():720] updated telemetry
+2025-08-18 15:19:44,009 INFO    MainThread:3575120 [wandb_init.py:init():753] communicating run to backend with 90.0 second timeout
+2025-08-18 15:19:44,276 INFO    MainThread:3575120 [wandb_run.py:_on_init():2435] communicating current version
+2025-08-18 15:19:44,339 INFO    MainThread:3575120 [wandb_run.py:_on_init():2444] got version response upgrade_message: "wandb version 0.21.1 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+
+2025-08-18 15:19:44,339 INFO    MainThread:3575120 [wandb_init.py:init():804] starting run threads in backend
+2025-08-18 15:19:45,993 INFO    MainThread:3575120 [wandb_run.py:_console_start():2413] atexit reg
+2025-08-18 15:19:45,993 INFO    MainThread:3575120 [wandb_run.py:_redirect():2255] redirect: wrap_raw
+2025-08-18 15:19:45,993 INFO    MainThread:3575120 [wandb_run.py:_redirect():2320] Wrapping output streams.
+2025-08-18 15:19:45,993 INFO    MainThread:3575120 [wandb_run.py:_redirect():2345] Redirects installed.
+2025-08-18 15:19:45,994 INFO    MainThread:3575120 [wandb_init.py:init():847] run started, returning control to user process
+2025-08-18 15:19:52,473 INFO    MainThread:3575120 [wandb_run.py:_finish():2107] finishing run guoyifan489/koopman_ext/spuzar1e
+2025-08-18 15:19:52,474 INFO    MainThread:3575120 [wandb_run.py:_atexit_cleanup():2374] got exitcode: 0
+2025-08-18 15:19:52,474 INFO    MainThread:3575120 [wandb_run.py:_restore():2352] restore
+2025-08-18 15:19:52,474 INFO    MainThread:3575120 [wandb_run.py:_restore():2358] restore done
+2025-08-18 15:19:56,995 INFO    MainThread:3575120 [wandb_run.py:_footer_history_summary_info():4016] rendering history
+2025-08-18 15:19:56,995 INFO    MainThread:3575120 [wandb_run.py:_footer_history_summary_info():4048] rendering summary
+2025-08-18 15:19:56,997 INFO    MainThread:3575120 [wandb_run.py:_footer_sync_info():3975] logging synced files
