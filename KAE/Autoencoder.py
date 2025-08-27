@@ -32,7 +32,7 @@ class Decoder(nn.Module):
     
 
 class KoopmanAutoencoder(nn.Module):
-    def __init__(self, state_dim, hidden_dim, observable_dim):
+    def __init__(self, state_dim, hidden_dim, observable_dim,device):
         super(KoopmanAutoencoder, self).__init__()
         self.encoder = Encoder(state_dim, hidden_dim, observable_dim)
         self.decoder = Decoder(observable_dim, state_dim)
@@ -40,12 +40,12 @@ class KoopmanAutoencoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.observable_dim = observable_dim
         # self.K = torch.randn(hidden_dim+state_dim, hidden_dim+state_dim)  
-        self.K = torch.randn(observable_dim, observable_dim)  
+        self.K = torch.randn(observable_dim, observable_dim).to(device)  
     
     def forward(self, x):
 
         z = self.encoder(x)  
-        
+
         if self.K is not None:
             z_next = torch.matmul(z, self.K.T)  # Apply computed Koopman operator
         else:
@@ -55,11 +55,11 @@ class KoopmanAutoencoder(nn.Module):
         x_hat = self.decoder(z)  
         return x_hat, z, y_hat
         
-    def compute_koopman_operator(self, latent_X, latent_Y):
+    def compute_koopman_operator(self, latent_X, latent_Y,device):
         X_pseudo_inv = torch.linalg.pinv(latent_X)  # Compute pseudo-inverse of latent_X
         # # ###### REPLACE PINV
         # U, S, Vh = torch.linalg.svd(latent_X, full_matrices=False, driver='gesvda')
         # S_inv = 1.0 / S
         # X_pseudo_inv = Vh.T @ torch.diag(S_inv) @ U.T
         # ####################################
-        self.K = torch.matmul(latent_Y.T, X_pseudo_inv.T)  # K = Y * X^+
+        self.K = torch.matmul(latent_Y.T, X_pseudo_inv.T).to(device)  # K = Y * X^+
