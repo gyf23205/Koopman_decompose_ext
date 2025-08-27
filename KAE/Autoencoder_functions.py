@@ -151,7 +151,7 @@ def stt_decompose_reconstruction(kae, z, z_next, observable_dim, propagation = T
         mode_output = temp
     return mode_output
 
-def stt_decompose_mode(kae, z, z_next, observable_dim, mode_number, propagation = True):
+def stt_decompose_mode(kae, z, z_next, mode_number, propagation = True):
     ko = kae.K
     if propagation:
         eigvals, eigvec_left = torch.linalg.eig(ko.T)
