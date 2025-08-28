@@ -131,7 +131,7 @@ def compute_theta_sub_all(kae, z, ko, n = 1):
     param_sub_all = v @ torch.diag(phi)
     return param_sub_all, eigvals
 
-def stt_decompose_reconstruction(kae, z, z_next, observable_dim, propagation = True):
+def stt_decompose_reconstruction(kae, z, z_next, observable_dim, p, propagation = True):
     ko = kae.K
     if propagation:
         eigvals, eigvec_left = torch.linalg.eig(ko.T)
@@ -147,9 +147,9 @@ def stt_decompose_reconstruction(kae, z, z_next, observable_dim, propagation = T
         # mode_output = v@phi@eigvals
         for i in range(0,observable_dim):
             if i == 0:
-                temp = eigvals[0]*phi[0]*v[:,0]
+                temp = (eigvals[0]**p)*phi[0]*v[:,0]
             else:
-                temp = temp + eigvals[i]*phi[i]*v[:,i]
+                temp = temp + (eigvals[i]**p)*phi[i]*v[:,i]
         # mode_output = v*(eigvals*phi)
         mode_output = temp
     else:
@@ -169,7 +169,7 @@ def stt_decompose_reconstruction(kae, z, z_next, observable_dim, propagation = T
         mode_output = temp
     return mode_output
 
-def stt_decompose_mode(kae, z, z_next, mode_number, propagation = True):
+def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True):
     ko = kae.K
     if propagation:
         eigvals, eigvec_left = torch.linalg.eig(ko.T)
@@ -181,7 +181,7 @@ def stt_decompose_mode(kae, z, z_next, mode_number, propagation = True):
         v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
         phi = eigvec_left @ z.to(torch.complex64)
-        temp = eigvals[mode_number]*phi[mode_number]*v[:,mode_number]
+        temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
         mode_output = temp
     else:
         _, eigvec_left = torch.linalg.eig(ko.T)
