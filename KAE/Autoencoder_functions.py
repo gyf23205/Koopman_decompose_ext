@@ -13,52 +13,44 @@ from torch.fx import symbolic_trace
 import matplotlib.pyplot as plt
 
 
-def koopman_loss(x, y, x_hat, latent_x, latent_y, p, model): # compute loss functions
+def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, model):
+    """
+    Koopman losses with multi-step supervision.
+    
+    Args:
+        x             : [B, l]  current state
+        x_hat         : [B, l]  reconstruction of x
+        latent_x      : [B, z]
+        y_seq_states  : [B, m, l] true states for steps 1..m
+        y_seq_latents : [B, m, z] true latents for steps 1..m
+        p             : rollout horizon (p=1 = one step)
+        model         : Koopman AE (must have model.K and model.decoder)
+
+    Returns:
+        recon_loss, state_pred_loss, latent_pred_loss
+    """
+
+    # Reconstruction loss (x vs x_hat)
     mse_loss = nn.MSELoss()
-    recon_loss = mse_loss(x_hat, x) # Reconstruction loss (between x and x_hat)
-    state_pred_loss = 0.0 # Prediction loss (up to p time steps)
-    latent_pred_loss = 0.0 # Prediction loss in lifted space (up to p time steps)
-    
-    # time_steps, _ = x.size()
-    # true_steps = 0
+    recon_loss = mse_loss(x_hat, x)
+    state_pred_loss = 0.0
+    latent_pred_loss = 0.0
+    B, m, _ = y_seq_states.shape
+    m = min(p, m)   # don’t exceed what we have in data
 
-    # # pre compute K power
-    # Ks = [torch.linalg.matrix_power(model.K.T, step - 1) for step in range(1, p + 1)]
+    # Precompute K powers
+    Ks = [torch.linalg.matrix_power(model.K.T, step) for step in range(1, p + 1)]
 
-    # for step in range(1, p + 1):
-    #     if step >= time_steps: # if it reaches the data limit
-    #         break
-    #     true_steps += 1
+    # Roll forward in latent space
+    for k in range(m):
+        pred_lat_k = latent_x @ Ks[k]              # [B, z]
+        pred_x_k   = model.decoder(pred_lat_k)     # [B, l]
 
-    #     # True & lifted future state 
-    #     true_future_state = x[step:, :]
-    #     true_future_latent = z[step:, :] ######################################################
+        state_pred_loss  += mse_loss(pred_x_k,   y_seq_states[:, k, :])
+        latent_pred_loss += mse_loss(pred_lat_k, y_seq_latents[:, k, :])
 
-    #     # Predict future latent states using Koopman operator
-    #     predicted_latent = z_pred[:-step, :]
-    #     predicted_latent = torch.matmul(predicted_latent, Ks[step - 1])
-        
-    #     # Decoded predicted future states 
-    #     predicted_state = model.decoder(predicted_latent)
-
-    #     # State Prediction Loss
-    #     state_pred_loss = state_pred_loss + mse_loss(predicted_state, true_future_state[:predicted_state.size(0), :])
-
-    #     # Latent Prediction Loss
-    #     latent_pred_loss = latent_pred_loss + mse_loss(predicted_latent, true_future_latent[:predicted_latent.size(0), :])
-    
-    predicted_latent = torch.matmul(latent_x, model.K.T)
-    predicted_state = model.decoder(predicted_latent)
-
-    # State Prediction Loss
-    state_pred_loss = state_pred_loss + mse_loss(predicted_state, y)
-
-    # Latent Prediction Loss
-    latent_pred_loss = latent_pred_loss + mse_loss(predicted_latent, latent_y)
-
-    # # Average prediction losses over p time steps
-    # state_pred_loss /= true_steps
-    # latent_pred_loss /= true_steps
+    state_pred_loss  /= m
+    latent_pred_loss /= m
 
     return recon_loss, state_pred_loss, latent_pred_loss
 
@@ -70,70 +62,54 @@ def convert_numpy_shape(input_data, return_tensor=True): # just to convert data 
     else:
         return reshaped_data 
 
-def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p, device):
-    # Concatenate input and output into a single augmented vector
-    x = aug_input.to(device)  
-    x = x.squeeze(1)   
-    y = aug_output.to(device)  
-    y = y.squeeze(1)   
+def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p, 
+            device, aug_input_all, aug_output_all, inner, batch_size):
+    """
+    Multi-step Koopman AE loss.
+    - p = function-wise rollout horizon (p=1 = one-step)
+    - aug_input_all / aug_output_all: full tensors [N,1,l] on CPU, ordered (shuffle=False)
+    - inner: batch index from enumerate(train_loader)
+    """
+    B = aug_input.size(0)
+    start = inner * batch_size
+    end   = start + B
 
-    # print(x.device)
-    # for name, param in kae.named_parameters():
-    #     print(name, param.device)
-
+    # Current input batch
+    x = aug_input.to(device).squeeze(1)        # [B, l]
     x_hat, latent_x, _ = kae(x)
-    y_hat, latent_y, _ = kae(y)
-    kae.compute_koopman_operator(latent_x, latent_y, device)
 
-    # print(x.shape, x_hat.shape, latent_x.shape, latent_y.shape)
+    # Collect up to p true future states from aug_output_all
+    y_seq_states = []
+    y_seq_latents = []
+    for k in range(p):
+        if end + k > len(aug_output_all):   # don’t run past dataset
+            break
+        yk = aug_output_all[start+k:end+k].to(device).squeeze(1)  # [B, l]
+        _, latent_yk, _ = kae(yk)
+        y_seq_states.append(yk)
+        y_seq_latents.append(latent_yk)
+
+    if not y_seq_states:
+        raise RuntimeError("No future states available for multi-step supervision.")
+
+    y_seq_states  = torch.stack(y_seq_states,  dim=1)  # [B, m, l]
+    y_seq_latents = torch.stack(y_seq_latents, dim=1)  # [B, m, z]
+
+    # Update Koopman operator from first step
+    # _, latent_x_all, _ = kae(aug_input_all)
+    # _, latent_y_all, _ = kae(aug_output_all)
+    # kae.compute_koopman_operator(latent_x_all, latent_y_all, device)
 
     # Compute losses
-    recon_loss, state_pred_loss, koopman_pred_loss = koopman_loss(x, y, x_hat, latent_x, latent_y, p, kae)
-    loss_kae = c1*recon_loss + c2*state_pred_loss + c3*koopman_pred_loss
+    recon_loss, state_pred_loss, koopman_pred_loss = koopman_loss(
+        x, x_hat, latent_x, y_seq_states, y_seq_latents, p, kae
+    )
 
-    # # time_steps, _ = x.size()
-    # # true_steps = 0
-
-    # # # pre compute K power
-    # # Ks = [torch.linalg.matrix_power(model.K.T, step - 1) for step in range(1, p + 1)]
-
-    # # for step in range(1, p + 1):
-    # #     if step >= time_steps: # if it reaches the data limit
-    # #         break
-    # #     true_steps += 1
-
-    # #     # True & lifted future state 
-    # #     true_future_state = x[step:, :]
-    # #     true_future_latent = z[step:, :] ######################################################
-
-    # #     # Predict future latent states using Koopman operator
-    # #     predicted_latent = z_pred[:-step, :]
-    # #     predicted_latent = torch.matmul(predicted_latent, Ks[step - 1])
-        
-    # #     # Decoded predicted future states 
-    # #     predicted_state = model.decoder(predicted_latent)
-
-    # #     # State Prediction Loss
-    # #     state_pred_loss = state_pred_loss + mse_loss(predicted_state, true_future_state[:predicted_state.size(0), :])
-
-    # #     # Latent Prediction Loss
-    # #     latent_pred_loss = latent_pred_loss + mse_loss(predicted_latent, true_future_latent[:predicted_latent.size(0), :])
-    
-    # predicted_latent = torch.matmul(latent_x, model.K.T)
-    # predicted_state = model.decoder(predicted_latent)
-
-    # # State Prediction Loss
-    # state_pred_loss = state_pred_loss + mse_loss(predicted_state, y)
-
-    # # Latent Prediction Loss
-    # latent_pred_loss = latent_pred_loss + mse_loss(predicted_latent, latent_y)
-
-    # # # Average prediction losses over p time steps
-    # # state_pred_loss /= true_steps
-    # # latent_pred_loss /= true_steps
-
-
+    loss_kae = c1*recon_loss + c2*state_pred_loss + c3*koopman_pred_loss    
     return loss_kae, latent_x
+
+    
+
 
 def compute_l_task(model, inputs, true_output, criterion):
     x = inputs.squeeze(1)

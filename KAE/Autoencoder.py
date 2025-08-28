@@ -56,10 +56,11 @@ class KoopmanAutoencoder(nn.Module):
         return x_hat, z, y_hat
         
     def compute_koopman_operator(self, latent_X, latent_Y,device):
-        X_pseudo_inv = torch.linalg.pinv(latent_X)  # Compute pseudo-inverse of latent_X
-        # # ###### REPLACE PINV
-        # U, S, Vh = torch.linalg.svd(latent_X, full_matrices=False, driver='gesvda')
-        # S_inv = 1.0 / S
-        # X_pseudo_inv = Vh.T @ torch.diag(S_inv) @ U.T
-        # ####################################
-        self.K = torch.matmul(latent_Y.T, X_pseudo_inv.T).to(device)  # K = Y * X^+
+        # print(latent_X.shape, latent_Y.shape)
+        latent_X = latent_X.view(-1, latent_X.size(-1))  # [N, d]
+        latent_Y = latent_Y.view(-1, latent_Y.size(-1))  # [N, d]
+
+        X_pseudo_inv = torch.linalg.pinv(latent_X.T)  # Compute pseudo-inverse of latent_X
+        # self.K = torch.matmul(latent_Y.T, X_pseudo_inv.T).to(device)  # K = Y * X^+
+        self.K = (latent_Y.T @ X_pseudo_inv).to(device)
+        # print(self.K.shape)
