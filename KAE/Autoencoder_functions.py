@@ -111,9 +111,9 @@ def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p,
     
 
 
-def compute_l_task(model, inputs, true_output, criterion):
-    x = inputs.squeeze(1)
-    y = true_output.squeeze(1)
+def compute_l_task(model, inputs, true_output, criterion, device):
+    x = inputs.squeeze(1).to(device)
+    y = true_output.squeeze(1).to(device)
     _,_, outputs = model(x)
 
     loss = criterion(outputs, y)
