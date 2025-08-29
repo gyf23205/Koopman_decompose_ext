@@ -18,6 +18,7 @@ def p_state_extract(model: nn.Module, x: torch.Tensor, p: int,
     Returns:
         states: dict with "input", "step_k", "output", and/or specific layers
     """
+    p = p-1 # Fixing index
 
     # --- get ordered list of submodules (skip root) ---
     layers = OrderedDict()

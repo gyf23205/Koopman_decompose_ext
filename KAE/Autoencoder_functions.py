@@ -111,12 +111,15 @@ def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p,
     
 
 
-def compute_l_task(model, inputs, true_output, criterion, device):
+def compute_l_task(model, inputs, true_output, criterion, max_reward, device):
     x = inputs.squeeze(1).to(device)
     y = true_output.squeeze(1).to(device)
     _,_, outputs = model(x)
 
     loss = criterion(outputs, y)
+
+    # reward = test_cartpole_kae_function(model, hidden_k, padded_dimension, p, device, mode_number = -1, num_episodes = num_episodes, save_imgs = True)
+    # loss = criterion(reward, max_reward)
 
     return loss
 

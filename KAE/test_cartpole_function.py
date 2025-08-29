@@ -26,7 +26,7 @@ def test_cartpole_function(model_path, save_imgs=False):
 
     for _ in range(num_episodes):
         f = []
-        obs, info = env.reset()
+        obs, info = env.reset(options={'low':-0.2, 'high':0.2})
         done = False
         total_reward = 0
         while not done:
@@ -100,7 +100,7 @@ def test_cartpole_kae_function(kae, observable_dim, padded_dim, p, device, mode_
 
         for _ in range(num_episodes):
             f = []
-            obs, info = env.reset()
+            obs, info = env.reset(options={'low':-0.2, 'high':0.2})
             done = False
             total_reward = 0
             while not done:
