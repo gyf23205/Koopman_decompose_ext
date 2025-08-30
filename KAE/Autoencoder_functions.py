@@ -123,7 +123,6 @@ def compute_l_task(model, inputs, true_output, criterion, max_reward, device):
 
     return loss
 
-
 def compute_theta_sub_all(kae, z, ko, n = 1):
     ko = torch.linalg.matrix_power(ko,n)
     eigvals, eigvec_left = torch.linalg.eig(ko)
@@ -154,7 +153,6 @@ def stt_decompose_reconstruction(kae, z, z_next, observable_dim, p, propagation 
             else:
                 temp = temp + (eigvals[i]**p)*phi[i]*v[:,i]
         # mode_output = v*(eigvals*phi)
-        mode_output = temp
     else:
         _, eigvec_left = torch.linalg.eig(ko.T)
         eigvec_left = eigvec_left.conj().T
@@ -169,7 +167,7 @@ def stt_decompose_reconstruction(kae, z, z_next, observable_dim, p, propagation 
                 temp = phi[0]*v[:,0]
             else:
                 temp = temp + phi[i]*v[:,i]
-        mode_output = temp
+    mode_output = temp
     return mode_output
 
 def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
@@ -188,7 +186,6 @@ def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conju
             temp = ((eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]).conj()
         else:
             temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
-        mode_output = temp
     else:
         _, eigvec_left = torch.linalg.eig(ko.T)
         eigvec_left = eigvec_left.conj().T
@@ -202,7 +199,7 @@ def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conju
             temp = (phi[mode_number]*v[:,mode_number]).conj
         else:
             temp = phi[mode_number]*v[:,mode_number]
-        mode_output = temp
+    mode_output = temp
     return mode_output
 
 def test_classifier(model, test_loader, device):
