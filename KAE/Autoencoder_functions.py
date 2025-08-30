@@ -172,7 +172,7 @@ def stt_decompose_reconstruction(kae, z, z_next, observable_dim, p, propagation 
         mode_output = temp
     return mode_output
 
-def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True):
+def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
     ko = kae.K
     if propagation:
         eigvals, eigvec_left = torch.linalg.eig(ko.T)
@@ -184,7 +184,10 @@ def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True):
         v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
         phi = eigvec_left @ z.to(torch.complex64)
-        temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
+        if conjugate:
+            temp = ((eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]).conj()
+        else:
+            temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
         mode_output = temp
     else:
         _, eigvec_left = torch.linalg.eig(ko.T)
@@ -195,7 +198,10 @@ def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True):
         v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
         phi = eigvec_left @ z_next.to(torch.complex64)
-        temp = phi[mode_number]*v[:,mode_number]
+        if conjugate:
+            temp = (phi[mode_number]*v[:,mode_number]).conj
+        else:
+            temp = phi[mode_number]*v[:,mode_number]
         mode_output = temp
     return mode_output
 

@@ -191,7 +191,7 @@ def replace_policy_to_kae(obs_tensor, obs_dim, act_dim, observable_dim, padded_d
     if mode_number == -1:
         logits = stt_decompose_reconstruction(model, z, _, observable_dim, p, propagation = True)
     else:
-        logits = stt_decompose_mode(model, z, observable_dim, mode_number, p, propagation = True)
+        logits = stt_decompose_mode(model, z,_, mode_number, p, propagation = True)
     
     # remove padding
     logits = logits[:act_dim]
