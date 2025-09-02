@@ -1,6 +1,6 @@
 playground**
 wandb/
-/KAE/results/**
+/KAE/results/
 /KAE/waypoints/** 
 /KAE/data/**
 /KAE/dataset/**
