@@ -110,30 +110,70 @@ def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p,
 
 def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim, state_bound_lo, state_bound_hi, 
                    padded_dimension, p, model, device):
+    
     kae = model
     loss_dist = 0
-    for i in range(0,observable_dim):
-        for j in range(i, observable_dim):        
-            if i!=j and (current_eig[i].conj()!=current_eig[j]):
-                loss_dist_temp = torch.zeros(1).to(device)
-                loss_dist_temp_1 = torch.zeros(1).to(device)
-                loss_dist_temp_2 = torch.zeros(1).to(device)
-                # print(loss_dist_temp, loss_dist_temp_1, loss_dist_temp_2)
+    tol = 1e-12
 
-                for k in range(0,loss_dist_mc_sample_num):
-                    random_input_loss_dist = torch.rand(1, obs_dim, device=device) * (state_bound_hi - state_bound_lo) + state_bound_lo
-                    pad_in_loss_dist = torch.ones(random_input_loss_dist.size(0), padded_dimension - obs_dim, device=device)
-                    aug_input_loss_dist = torch.cat([random_input_loss_dist, pad_in_loss_dist], dim=1)
-                    _,z_loss_dist,_ = kae(aug_input_loss_dist)
+    def is_real(z, tol=1e-12):
+        return abs(z.imag) <= tol
 
-                    loss_dist_temp_1 = stt_decompose_mode(kae, z_loss_dist.T,_, i, p, propagation = True)
-                    loss_dist_temp_2 = stt_decompose_mode(kae, z_loss_dist.T,_, j, p, propagation = True)
-                    loss_dist_temp = loss_dist_temp + loss_dist_temp_1*loss_dist_temp_2.conj()
+    rep_idxs = []
+    for i, lam in enumerate(current_eig):
+        if lam.imag > tol:
+            rep_idxs.append(i)
+        elif is_real(lam, tol):
+            rep_idxs.append(i)
 
-                loss_dist = loss_dist + (loss_dist_temp/loss_dist_mc_sample_num)
+
+    for a, i in enumerate(rep_idxs):
+        for j in rep_idxs[a+1:]:
+            loss_dist_temp = torch.zeros(1).to(device)
+            loss_dist_temp_1 = torch.zeros(1).to(device)
+            loss_dist_temp_2 = torch.zeros(1).to(device)
+            # print(loss_dist_temp, loss_dist_temp_1, loss_dist_temp_2)
+
+            for k in range(0,loss_dist_mc_sample_num):
+                random_input_loss_dist = torch.rand(1, obs_dim, device=device) * (state_bound_hi - state_bound_lo) + state_bound_lo
+                pad_in_loss_dist = torch.ones(random_input_loss_dist.size(0), padded_dimension - obs_dim, device=device)
+                aug_input_loss_dist = torch.cat([random_input_loss_dist, pad_in_loss_dist], dim=1)
+                _,z_loss_dist,_ = kae(aug_input_loss_dist)
+
+                loss_dist_temp_1 = stt_decompose_mode(kae, z_loss_dist.T,_, i, p, propagation = True)
+                loss_dist_temp_2 = stt_decompose_mode(kae, z_loss_dist.T,_, j, p, propagation = True)
+                loss_dist_temp = loss_dist_temp + loss_dist_temp_1*loss_dist_temp_2.conj()
+
+            loss_dist = loss_dist + (loss_dist_temp/loss_dist_mc_sample_num)
 
     loss_dist = torch.abs(torch.sum(loss_dist).real)    
     return loss_dist
+
+# def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim, state_bound_lo, state_bound_hi, 
+#                    padded_dimension, p, model, device):
+#     kae = model
+#     loss_dist = 0
+#     for i in range(0,observable_dim):
+#         for j in range(i, observable_dim):        
+#             if i!=j and (current_eig[i].conj()!=current_eig[j]):
+#                 loss_dist_temp = torch.zeros(1).to(device)
+#                 loss_dist_temp_1 = torch.zeros(1).to(device)
+#                 loss_dist_temp_2 = torch.zeros(1).to(device)
+#                 # print(loss_dist_temp, loss_dist_temp_1, loss_dist_temp_2)
+
+#                 for k in range(0,loss_dist_mc_sample_num):
+#                     random_input_loss_dist = torch.rand(1, obs_dim, device=device) * (state_bound_hi - state_bound_lo) + state_bound_lo
+#                     pad_in_loss_dist = torch.ones(random_input_loss_dist.size(0), padded_dimension - obs_dim, device=device)
+#                     aug_input_loss_dist = torch.cat([random_input_loss_dist, pad_in_loss_dist], dim=1)
+#                     _,z_loss_dist,_ = kae(aug_input_loss_dist)
+
+#                     loss_dist_temp_1 = stt_decompose_mode(kae, z_loss_dist.T,_, i, p, propagation = True)
+#                     loss_dist_temp_2 = stt_decompose_mode(kae, z_loss_dist.T,_, j, p, propagation = True)
+#                     loss_dist_temp = loss_dist_temp + loss_dist_temp_1*loss_dist_temp_2.conj()
+
+#                 loss_dist = loss_dist + (loss_dist_temp/loss_dist_mc_sample_num)
+
+#     loss_dist = torch.abs(torch.sum(loss_dist).real)    
+#     return loss_dist
 
 
 def compute_l_task(model, inputs, true_output, criterion, max_reward, device):
