@@ -3,3 +3,5 @@ wandb/
 /KAE/waypoints/** 
 /KAE/data/**
 /KAE/dataset/**
+/KAE/results/**
+/KAE/imgs/**
