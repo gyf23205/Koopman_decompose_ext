@@ -24,11 +24,11 @@ if __name__ == "__main__":
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.n
 
-    kae = KoopmanAutoencoder(load=True, load_path="saved_models/KAEs/kae_cartpole_mlp.pt").to(device)
+    kae = KoopmanAutoencoder(load=True, load_path="saved_models_re/KAEs/kae_cartpole_mlp.pt").to(device)
     kae.eval()
 
     n_dom_modes = 32
-    params_traj = torch.tensor(np.load("saved_trajectory/param_trajectory_cartpole_mlp.npy"), device=device, dtype=torch.float32)
+    params_traj = torch.tensor(np.load("saved_trajectory_re/param_trajectory_cartpole_mlp.npy"), device=device, dtype=torch.float32)
     x_hat, z, z_pred = kae(params_traj)
     N_O = z.shape[-1]
     param_sub_all, eigvals = compute_theta_sub_all(kae, z, kae.K)
@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     for _ in range(num_episodes):
         f = []
-        obs, info = env.reset()
+        obs, info = env.reset(options={"low": -0.15, "high": 0.15})
         done = False
         total_reward = 0
         while not done:
@@ -97,5 +97,5 @@ if __name__ == "__main__":
         return imgs + texts
 
     ani = FuncAnimation(fig, update, frames=max(n_frames), interval=33)  # ~30 FPS
-    ani.save("imgs/cartpole_mlp_reconstruct.gif", writer="pillow", fps=30)
-    print("GIF saved as imgs/cartpole_mlp_reconstruct.gif")
+    ani.save("imgs_re/cartpole_mlp_reconstruct.gif", writer="pillow", fps=30)
+    print("GIF saved as imgs_re/cartpole_mlp_reconstruct.gif")

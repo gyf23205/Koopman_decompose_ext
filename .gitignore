@@ -1,2 +1,6 @@
 playground**
 wandb/
+saved_models/
+*.pt
+*.pth
+imgs_re/**

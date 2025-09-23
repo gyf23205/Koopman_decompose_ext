@@ -12,63 +12,45 @@ import torch.nn.functional as F
 from torch.fx import symbolic_trace
 import matplotlib.pyplot as plt
 
-# from dataset.MNIST import MNIST
-# from dataset.FMNIST import FMNIST
-# from dataset.CIFAR10 import CIFAR10
-# from dataset.MNISTPerClass import MNISTPerClass
-# from dataset.FMNISTPerClass import FMNISTPerClass
-# from dataset.CIFAR10PerClass import CIFARPerClass
 
-# import dill
-
-def collect_latent_states(model, param_traj): # collect lifted (=latent) states 
-    z = model.encoder(param_traj)
-    latents = z[:-1, :]  # States at time t
-    latents_next = z[1:, :]  # States at time t+1
+def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, model):
+    """
+    Koopman losses with multi-step supervision.
     
-    # latent_X = torch.cat(latent_X_list, dim=0)
-    # latent_Y = torch.cat(latent_Y_list, dim=0)
-    
-    return latents, latents_next
+    Args:
+        x             : [B, l]  current state
+        x_hat         : [B, l]  reconstruction of x
+        latent_x      : [B, z]
+        y_seq_states  : [B, m, l] true states for steps 1..m
+        y_seq_latents : [B, m, z] true latents for steps 1..m
+        p             : rollout horizon (p=1 = one step)
+        model         : Koopman AE (must have model.K and model.decoder)
 
-def koopman_loss(x, x_hat, z, z_pred, p, model): # compute loss functions
+    Returns:
+        recon_loss, state_pred_loss, latent_pred_loss
+    """
+
+    # Reconstruction loss (x vs x_hat)
     mse_loss = nn.MSELoss()
-    recon_loss = mse_loss(x_hat, x) # Reconstruction loss (between x and x_hat)
-    state_pred_loss = 0.0 # Prediction loss (up to p time steps)
-    latent_pred_loss = 0.0 # Prediction loss in lifted space (up to p time steps)
-    time_steps, _ = x.size()
+    recon_loss = mse_loss(x_hat, x)
+    state_pred_loss = 0.0
+    latent_pred_loss = 0.0
+    B, m, _ = y_seq_states.shape
+    m = min(p, m)   # don’t exceed what we have in data
 
-    true_steps = 0
+    # Precompute K powers
+    Ks = [torch.linalg.matrix_power(model.K.T, step) for step in range(1, p + 1)]
 
-    # pre compute K power
-    Ks = [torch.linalg.matrix_power(model.K.T, step - 1) for step in range(1, p + 1)]
+    # Roll forward in latent space
+    for k in range(m):
+        pred_lat_k = latent_x @ Ks[k]              # [B, z]
+        pred_x_k   = model.decoder(pred_lat_k)     # [B, l]
 
-    for step in range(1, p + 1):
-        if step >= time_steps: # if it reaches the data limit
-            break
-        true_steps += 1
+        state_pred_loss  += mse_loss(pred_x_k,   y_seq_states[:, k, :])
+        latent_pred_loss += mse_loss(pred_lat_k, y_seq_latents[:, k, :])
 
-        # True & lifted future state 
-        true_future_state = x[step:, :]
-        true_future_latent = z[step:, :] ######################################################
-
-        # Predict future latent states using Koopman operator
-        predicted_latent = z_pred[:-step, :]
-        predicted_latent = torch.matmul(predicted_latent, Ks[step - 1])
-        
-        # Decoded predicted future states 
-        predicted_state = model.decoder(predicted_latent)
-
-        # State Prediction Loss
-        state_pred_loss = state_pred_loss + mse_loss(predicted_state, true_future_state[:predicted_state.size(0), :])
-
-        # Latent Prediction Loss
-        latent_pred_loss = latent_pred_loss + mse_loss(predicted_latent, true_future_latent[:predicted_latent.size(0), :])
-
-
-    # Average prediction losses over p time steps
-    state_pred_loss /= true_steps
-    latent_pred_loss /= true_steps
+    state_pred_loss  /= m
+    latent_pred_loss /= m
 
     return recon_loss, state_pred_loss, latent_pred_loss
 
@@ -80,23 +62,65 @@ def convert_numpy_shape(input_data, return_tensor=True): # just to convert data 
     else:
         return reshaped_data 
 
-def compute_l_kae(kae, params_snapshots, c1, c2, c3, p, device):
-    x = params_snapshots.to(device)
-    latents, latents_next = collect_latent_states(kae, x)
-    kae.compute_koopman_operator(latents, latents_next)
-    x_hat, z, z_pred = kae(x)
-    recon_loss, state_pred_loss, koopman_pred_loss = koopman_loss(x, x_hat, z, z_pred, p, kae)
-    loss_kae = c1*recon_loss + c2*state_pred_loss + c3*koopman_pred_loss # + c4*k_norm_loss      
-    return loss_kae, z
+def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p, 
+            device, aug_input_all, aug_output_all, inner, batch_size):
+    """
+    Multi-step Koopman AE loss.
+    - p = function-wise rollout horizon (p=1 = one-step)
+    - aug_input_all / aug_output_all: full tensors [N,1,l] on CPU, ordered (shuffle=False)
+    - inner: batch index from enumerate(train_loader)
+    """
+    B = aug_input.size(0)
+    start = inner * batch_size
+    end   = start + B
 
-def compute_l_classifier(model, images, labels, criterion_classifier, device):
-    # Move tensors to device
-    images = images.reshape(-1, 28*28).to(device)
-    labels = labels.to(device)
+    # Current input batch
+    x = aug_input.to(device).squeeze(1)        # [B, l]
+    x_hat, latent_x, _ = kae(x)
 
-    # Forward pass
-    outputs = model(images)
-    loss = criterion_classifier(outputs, labels)
+    # Collect up to p true future states from aug_output_all
+    y_seq_states = []
+    y_seq_latents = []
+    for k in range(p):
+        if end + k > len(aug_output_all):   # don’t run past dataset
+            break
+        yk = aug_output_all[start+k:end+k].to(device).squeeze(1)  # [B, l]
+        _, latent_yk, _ = kae(yk)
+        y_seq_states.append(yk)
+        y_seq_latents.append(latent_yk)
+
+    if not y_seq_states:
+        raise RuntimeError("No future states available for multi-step supervision.")
+
+    y_seq_states  = torch.stack(y_seq_states,  dim=1)  # [B, m, l]
+    y_seq_latents = torch.stack(y_seq_latents, dim=1)  # [B, m, z]
+
+    # Update Koopman operator from first step
+    # _, latent_x_all, _ = kae(aug_input_all)
+    # _, latent_y_all, _ = kae(aug_output_all)
+    # kae.compute_koopman_operator(latent_x_all, latent_y_all, device)
+
+    # Compute losses
+    recon_loss, state_pred_loss, koopman_pred_loss = koopman_loss(
+        x, x_hat, latent_x, y_seq_states, y_seq_latents, p, kae
+    )
+
+    loss_kae = c1*recon_loss + c2*state_pred_loss + c3*koopman_pred_loss    
+    return loss_kae, latent_x
+
+    
+
+
+def compute_l_task(model, inputs, true_output, criterion, max_reward, device):
+    x = inputs.squeeze(1).to(device)
+    y = true_output.squeeze(1).to(device)
+    _,_, outputs = model(x)
+
+    loss = criterion(outputs, y)
+
+    # reward = test_cartpole_kae_function(model, hidden_k, padded_dimension, p, device, mode_number = -1, num_episodes = num_episodes, save_imgs = True)
+    # loss = criterion(reward, max_reward)
+
     return loss
 
 def compute_theta_sub_all(kae, z, ko, n = 1):
@@ -104,27 +128,79 @@ def compute_theta_sub_all(kae, z, ko, n = 1):
     eigvals, eigvec_left = torch.linalg.eig(ko)
     eigvec_left = eigvec_left.real.detach()
     eigvec_left_inv = torch.linalg.pinv(eigvec_left)
-    # ##### REPLACE PINV
-    # def fast_truncated_pinv(X, eps=1e-6):
-    #     U, S, Vh = torch.linalg.svd(X, full_matrices=False)
-    #     S_inv = torch.where(S > eps, 1.0 / S, torch.zeros_like(S))
-    #     return Vh.T @ torch.diag(S_inv) @ U.T
-    # eigvec_left_inv = fast_truncated_pinv(eigvec_left)
-    ###################################
     v = (kae.decoder(eigvec_left_inv)).T
     phi = eigvec_left @ z[-1, :]
     param_sub_all = v @ torch.diag(phi)
     return param_sub_all, eigvals
 
-# def compute_theta_sub_all_steps(kae, z, ko, n):
-#     ko = torch.linalg.matrix_power(ko,n)
-#     eigvals, eigvec_left = torch.linalg.eig(ko)
-#     eigvec_left = eigvec_left.real.detach()
-#     eigvec_left_inv = torch.linalg.pinv(eigvec_left)
-#     v = (kae.decoder(eigvec_left_inv)).T
-#     phi = eigvec_left @ z[-1, :]
-#     param_sub_all = v @ torch.diag(phi)
-#     return param_sub_all, eigvals
+def stt_decompose_reconstruction(kae, z, z_next, observable_dim, p, propagation = True):
+    ko = kae.K
+    if propagation:
+        eigvals, eigvec_left = torch.linalg.eig(ko.T)
+        eigvals = eigvals.conj().T
+        eigvec_left = eigvec_left.conj().T
+        eigvec_left_inv = torch.linalg.inv(eigvec_left)
+        B = kae.decoder.linear.weight.detach().clone()
+        B = B.to(torch.complex64)
+        v = (B @ eigvec_left_inv) # kae dim x encoder dim
+
+        phi = eigvec_left @ z.to(torch.complex64)
+        # print(eigvals.shape, phi.shape, v.shape)
+        # mode_output = v@phi@eigvals
+        for i in range(0,observable_dim):
+            if i == 0:
+                temp = (eigvals[0]**p)*phi[0]*v[:,0]
+            else:
+                temp = temp + (eigvals[i]**p)*phi[i]*v[:,i]
+        # mode_output = v*(eigvals*phi)
+    else:
+        _, eigvec_left = torch.linalg.eig(ko.T)
+        eigvec_left = eigvec_left.conj().T
+        eigvec_left_inv = torch.linalg.inv(eigvec_left)
+        B = kae.decoder.linear.weight.detach().clone()
+        B = B.to(torch.complex64)
+        v = (B @ eigvec_left_inv) # kae dim x encoder dim
+
+        phi = eigvec_left @ z_next.to(torch.complex64)
+        for i in range(0,observable_dim):
+            if i == 0:
+                temp = phi[0]*v[:,0]
+            else:
+                temp = temp + phi[i]*v[:,i]
+    mode_output = temp
+    return mode_output
+
+def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
+    ko = kae.K
+    if propagation:
+        eigvals, eigvec_left = torch.linalg.eig(ko.T)
+        eigvals = eigvals.conj().T
+        eigvec_left = eigvec_left.conj().T
+        eigvec_left_inv = torch.linalg.inv(eigvec_left)
+        B = kae.decoder.linear.weight.detach().clone()
+        B = B.to(torch.complex64)
+        v = (B @ eigvec_left_inv) # kae dim x encoder dim
+
+        phi = eigvec_left @ z.to(torch.complex64)
+        if conjugate:
+            temp = ((eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]).conj()
+        else:
+            temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
+    else:
+        _, eigvec_left = torch.linalg.eig(ko.T)
+        eigvec_left = eigvec_left.conj().T
+        eigvec_left_inv = torch.linalg.inv(eigvec_left)
+        B = kae.decoder.linear.weight.detach().clone()
+        B = B.to(torch.complex64)
+        v = (B @ eigvec_left_inv) # kae dim x encoder dim
+
+        phi = eigvec_left @ z_next.to(torch.complex64)
+        if conjugate:
+            temp = (phi[mode_number]*v[:,mode_number]).conj
+        else:
+            temp = phi[mode_number]*v[:,mode_number]
+    mode_output = temp
+    return mode_output
 
 def test_classifier(model, test_loader, device):
     model.eval()  # evaluation mode
@@ -142,45 +218,26 @@ def test_classifier(model, test_loader, device):
         accuracy = 100 * correct / total
         print(f'Test Accuracy: {accuracy:.2f}%')
 
-def test_classifier_return(model, test_loader, device):
-    model.eval()  # evaluation mode
+def test_classifier_return(model, images, labels, device, num_classes=None):
+    model.eval()
     with torch.no_grad():
-        correct = 0
-        total = 0
-        for images, labels in test_loader:
-            images = images.reshape(-1, 28*28).to(device)
-            labels = labels.to(device)
-            outputs = model(images)
-            predicted = torch.argmax(outputs, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-        accuracy = 100 * correct / total
+        _,_,outputs = model(images)
+        outputs = outputs[:, :num_classes]
+        predicted = torch.argmax(outputs, dim=1)
+        correct = (predicted == labels).sum().item()
+        total = labels.size(0)
+        accuracy = 100.0 * correct / total
     return accuracy
 
-# Generalized version
+
 def compute_l_classifier_within(
-    param_sub,
     images,
     labels,
     criterion_classifier,
-    classifier_shapes,
-    param_shapes,
+    model,
+    num_class,
     device
 ):
-    """
-    Args:
-        param_sub (torch.Tensor): Flattened model parameters
-        images (torch.Tensor): Input images or observations
-        labels (torch.Tensor): Target labels
-        criterion_classifier (nn.Module): Loss function (e.g., nn.CrossEntropyLoss)
-        classifier_shapes (List[Dict]): Model structure
-        param_shapes (List[torch.Size]): Parameter shapes
-        device (torch.device): CUDA or CPU
-
-    Returns:
-        torch.Tensor: Classification loss
-    """
     images = images.to(device)
     labels = labels.to(device)
     
@@ -191,103 +248,12 @@ def compute_l_classifier_within(
     else:
         raise ValueError(f"Unexpected input shape: {images.shape}")
     
-    outputs = classifier_sub(images, param_sub, classifier_shapes, param_shapes)
+    _,_,outputs = model(images) 
+    if isinstance(outputs, tuple):
+        outputs = outputs[0]
+
+    if num_class is not None and outputs.size(1) > num_class:
+        outputs = outputs[:, :num_class]
+
     loss = criterion_classifier(outputs, labels)
     return loss
-
-def classifier_sub(x, p_vec, classifier_shapes, param_shapes):
-    """
-    Args:
-        x (torch.Tensor): Input tensor
-        p_vec (torch.Tensor): Flattened parameter vector
-        classifier_shapes (List[Dict]): Layer structure from extract_model_structure_and_shapes()
-        param_shapes (List[torch.Size]): Flattened parameter shapes (ordered)
-
-    Returns:
-        torch.Tensor: Output after applying the model
-    """
-    return functional_forward(x, p_vec, classifier_shapes, param_shapes)
-
-
-def extract_model_structure_and_shapes(model: nn.Module):
-    traced = symbolic_trace(model)
-    modules = dict(model.named_modules())
-    model_structure = []
-    param_shapes = []
-
-    for node in traced.graph.nodes:
-        if node.op != "call_module":
-            continue
-        layer = modules[node.target]
-        layer_type = type(layer)
-
-        if isinstance(layer, nn.Conv2d):
-            model_structure.append({
-                "type": "conv2d",
-                "params": [layer.weight.shape, layer.bias.shape],
-                "stride": layer.stride,
-                "padding": layer.padding,
-            })
-            param_shapes.extend([layer.weight.shape, layer.bias.shape])
-        elif isinstance(layer, nn.Linear):
-            model_structure.append({
-                "type": "linear",
-                "params": [layer.weight.shape, layer.bias.shape],
-            })
-            param_shapes.extend([layer.weight.shape, layer.bias.shape])
-        elif isinstance(layer, nn.ReLU):
-            model_structure.append({"type": "relu"})
-        elif isinstance(layer, nn.Tanh):
-            model_structure.append({"type": "tanh"})
-        elif isinstance(layer, nn.MaxPool2d):
-            model_structure.append({
-                "type": "maxpool2d",
-                "kernel_size": layer.kernel_size,
-                "stride": layer.stride,
-            })
-        elif isinstance(layer, nn.Flatten):
-            model_structure.append({"type": "flatten"})
-        else:
-            raise NotImplementedError(f"Unsupported layer type: {layer_type}")
-
-    return model_structure, param_shapes
-
-def flatten_model_params(model: nn.Module) -> torch.Tensor:
-    return torch.nn.utils.parameters_to_vector(model.parameters())
-
-def functional_forward(x: torch.Tensor, p_vec: torch.Tensor, model_structure, param_shapes):
-    device = x.device
-    idx = 0
-    for layer in model_structure:
-        layer_type = layer["type"]
-
-        if "params" in layer:
-            layer_params = []
-            for shape in layer["params"]:
-                numel = torch.prod(torch.tensor(shape, device=device)).item()
-                param = p_vec[idx:idx + numel].view(shape).to(device)
-                layer_params.append(param)
-                idx += numel
-        else:
-            layer_params = []
-
-        if layer_type == "conv2d":
-            weight, bias = layer_params
-            x = F.conv2d(x, weight, bias, stride=layer["stride"], padding=layer["padding"])
-        elif layer_type == "linear":
-            if x.dim() > 2:
-                x = x.view(x.size(0), -1)
-            weight, bias = layer_params
-            x = F.linear(x, weight, bias)
-        elif layer_type == "relu":
-            x = F.relu(x)
-        elif layer_type == "tanh":
-            x = torch.tanh(x)
-        elif layer_type == "maxpool2d":
-            x = F.max_pool2d(x, kernel_size=layer["kernel_size"], stride=layer["stride"])
-        elif layer_type == "flatten":
-            x = x.view(x.size(0), -1)
-        else:
-            raise NotImplementedError(f"Unsupported layer: {layer_type}")
-
-    return x
