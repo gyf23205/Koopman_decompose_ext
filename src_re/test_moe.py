@@ -35,19 +35,19 @@ if __name__ == "__main__":
     act_dim = env.action_space.n
     num_layers = 2
 
-    n_dom_modes = 8
-    padded_dim = 128
-    kae_size = 48
-    p = 3
+    n_dom_modes = 4
+    padded_dim = 64
+    kae_size = 32
+    p = 2
     kae = KoopmanAutoencoder(padded_dim, kae_size, n_dom_modes, device).to(device)
-    kae.load_state_dict(torch.load("saved_models_re/KAEs/KAE_state_dict_[8, 128, 48, 0.5, 0.4, 0.1, 3, 'CARTPOLE_v1']_2025-09-17.pt", weights_only=True, map_location=device))
+    kae.load_state_dict(torch.load("saved_models_re/KAEs/KAE_state_dict_[4, 64, 32, 0.5, -1, 0.5, 2, 'CARTPOLE_v1']_2025-09-25.pt", weights_only=True, map_location=device))
     kae.eval()
     # params_traj = torch.tensor(np.load("saved_trajectory/param_trajectory_cartpole_mlp.npy"), device=device, dtype=torch.float32)
     # x_hat, z, z_pred = kae(params_traj)
     # N_O = z.shape[-1]
     # param_sub_all, eigvals = compute_theta_sub_all(kae, z, kae.K)
     moe = MoE(obs_dim, num_experts=n_dom_modes, num_layers=num_layers).to(device)
-    moe.load_state_dict(torch.load("saved_models_re/MoEs/moe_cartpole_mlp_retrain_value_spin_{}layers.pt".format(num_layers)))
+    # moe.load_state_dict(torch.load("saved_models_re/MoEs/moe_cartpole_mlp_retrain_value_spin_{}layers.pt".format(num_layers)))
     moe.eval()
     # policy_net = CartpoleMLP(obs_dim, act_dim).to(device)
 
