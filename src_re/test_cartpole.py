@@ -4,13 +4,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from models.MLP import CartpoleMLP
+from envs.CartpoleSpin import CartPoleSpin
 
-env = gym.make("CartPole-v1", render_mode="rgb_array")
+base = gym.make("CartPole-v1", render_mode="rgb_array")
+env = CartPoleSpin(base)
+
 obs_dim = env.observation_space.shape[0]
 act_dim = env.action_space.n
 
 policy_net = CartpoleMLP(obs_dim, act_dim)
-policy_net.load_state_dict(torch.load("saved_models/originals/ppo_cartpole_policy.pt"))
+policy_net.load_state_dict(torch.load("saved_models_re/originals/ppo_cartpole_swing_policy_best.pt"))
 policy_net.eval()
 
 num_episodes = 20
@@ -20,7 +23,7 @@ n_frames = []
 
 for _ in range(num_episodes):
     f = []
-    obs, info = env.reset()
+    obs, info = env.reset(options={"low": -0.2, "high": 0.2})
     done = False
     total_reward = 0
     while not done:
@@ -74,5 +77,5 @@ def update(frame_idx):
     return imgs + texts
 
 ani = FuncAnimation(fig, update, frames=max(n_frames), interval=33)  # ~30 FPS
-ani.save("imgs/cartpole_all_episodes_subplots_with_time.gif", writer="pillow", fps=30)
-print("GIF saved as imgs/cartpole_all_episodes_subplots_with_time.gif")
+ani.save("imgs_re/cartpole_all_episodes_spin.gif", writer="pillow", fps=30)
+print("GIF saved as imgs_re/cartpole_all_episodes_spin.gif")

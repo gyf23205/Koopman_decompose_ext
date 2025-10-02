@@ -5,3 +5,7 @@ wandb/
 /KAE/dataset/**
 /KAE/results/**
 /KAE/imgs/**
+saved_models/
+*.pt
+*.pth
+imgs_re/**

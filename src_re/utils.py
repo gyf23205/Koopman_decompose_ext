@@ -36,6 +36,25 @@ def process_trajectory(value_net, obs_buf, act_buf, logp_buf, rew_buf, done_buf,
     dataset = TensorDataset(obs_tensor, act_tensor, logp_tensor, adv_tensor, ret_tensor)
     return dataset
 
+def get_experts_outputs(kae, z, p, act_dim, conjugate=False):
+    ko = kae.K
+    eigvals, eigvec_left = torch.linalg.eig(ko.T)
+    eigvals = eigvals.conj().T.unsqueeze(0)
+    eigvec_left = eigvec_left.conj().T.unsqueeze(0)
+    eigvec_left_inv = torch.linalg.inv(eigvec_left)
+
+    B = kae.decoder.linear.weight.detach().clone()
+    B = B.to(torch.complex64)
+    v = (B @ eigvec_left_inv) # kae dim x encoder dim
+
+    phi = torch.sum(eigvec_left * z.to(torch.complex64).unsqueeze(1), dim=-1)
+    # phi = eigvec_left @ z.to(torch.complex64)
+    if conjugate:
+        expert_outputs = (((eigvals**p)*phi).unsqueeze(1)*v).conj()
+    else:
+        expert_outputs = ((eigvals**p)*phi).unsqueeze(1)*v
+    return expert_outputs[:, :act_dim, :].transpose(1, 2).to(torch.float32) # (Batch, n_experts, n_actions)
+
 def compute_grad_norm(model):
     total_norm = 0.0
     for p in model.parameters():
