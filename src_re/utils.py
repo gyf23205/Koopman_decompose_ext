@@ -8,11 +8,16 @@ from torch.fx import symbolic_trace
 
 def select_action(obs, policy_net, device):
     obs_tensor = torch.tensor(obs, dtype=torch.float32).to(device)
-    logits = policy_net(obs_tensor)
-    dist = torch.distributions.Categorical(logits=logits)
+    probs = F.softmax(policy_net(obs_tensor), dim=-1)
+    dist = torch.distributions.Categorical(probs=probs)
     action = dist.sample()
     log_prob = dist.log_prob(action)
     return action.item(), log_prob.item(), dist
+
+def extend_experts_outputs(experts_outputs, act_dim):
+    extends = torch.diag(torch.ones(act_dim, dtype=experts_outputs.dtype, device=experts_outputs.device)).tile(experts_outputs.shape[0], 1, 1)
+    extended_outputs = torch.cat([experts_outputs, extends], dim=1)
+    return extended_outputs
 
 def compute_gae(rewards, values, dones, next_value, gamma=0.99, gae_lambda=0.95):
     advantages = []

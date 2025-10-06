@@ -9,7 +9,7 @@ class MoE(nn.Module):
             layers.append(nn.Linear(input_dim, input_dim))
             layers.append(nn.ReLU())
         layers.append(nn.Linear(input_dim, num_experts))
-        layers.append(nn.Softmax(dim=-1))
+        # layers.append(nn.Softmax(dim=-1))
         self.gate = nn.Sequential(*layers)
 
     def forward(self, x):
