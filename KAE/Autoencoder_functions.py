@@ -235,6 +235,40 @@ def stt_decompose_reconstruction(kae, z, z_next, observable_dim, p, propagation 
     mode_output = temp
     return mode_output
 
+def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_dim, propagation = True):
+    """
+    Batched Koopman reconstruction with modal summation.
+      z, z_next : [B, observable_dim]
+      kae.K     : [observable_dim, observable_dim]
+      kae.decoder.linear.weight : [D, observable_dim]
+    Returns mode_output : [B, D]
+    """
+
+    device = z.device
+
+    # eigendecomposition of Kᵀ → left eigenvectors of K are rows of L
+    eigvals, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
+    eigvals = eigvals.conj()                     # column eigenvalues of K
+    eigvec_left = eigvec_left.conj().T           # [observable_dim, observable_dim]
+    eigvec_left_inv = torch.linalg.inv(eigvec_left)
+
+    # decoder linear matrix
+    B = kae.decoder.linear.weight.detach().clone().to(torch.complex64).to(device)  # [D, observable_dim]
+    v = B @ eigvec_left_inv                    # [D, observable_dim]
+
+    # choose z or z_next depending on propagation flag
+    z_used = z if propagation else z_next
+    z_used = z_used.to(torch.complex64)
+
+    # φ_bi = l_i^H z_b → [B, observable_dim]
+    phi = torch.einsum("ij,bj->bi", eigvec_left, z_used)
+
+    # compute each term v[:, i] * (λ_i**p * φ_bi) and sum across i
+    eig_pow = eigvals[:observable_dim] ** (p if propagation else 1)
+    mode_output = torch.einsum("bi,di->bd", phi * eig_pow, v[:, :observable_dim])
+
+    return mode_output[:, :act_dim].real
+
 def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
     ko = kae.K
     if propagation:
