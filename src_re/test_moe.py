@@ -5,13 +5,16 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from models.Autoencoder import KoopmanAutoencoder
 from models.Autoencoder_functions import *
-# from models.MLP import CartpoleMLP
+from models.MLP import CartpoleMLP
 from models.MoE import MoE
 from envs.CartpoleSpin import CartPoleSpin
 from utils import *
 import sys
 sys.path.append("/home/yifan/git/Koopman_decompose_ext/src_re/models") 
+from torch.serialization import add_safe_globals, safe_globals
 
+# Allowlist KoopmanAutoencoder for safe deserialization
+add_safe_globals([KoopmanAutoencoder])
 
 if __name__ == "__main__":
     # Use GPU
@@ -26,28 +29,36 @@ if __name__ == "__main__":
     torch.backends.cudnn.benchmark = False
     os.environ['PYTHONHASHSEED'] = str(seed)
     base = gym.make("CartPole-v1", render_mode="rgb_array")
-    # w_a = 0.0
-    # w_c = 0.5
-    # w_s = 1.2
-    # env = CartPoleSpin(base, w_a, w_c, w_s)
-    env = base
+    w_a = 0.08
+    w_c = 0.5
+    w_s = 1.07
+    w_s_initial = 0.1  # Start with lower w_s
+    w_s_final = 1.07   # 1.07 Final target w_s
+    w_s_current = w_s_initial
+    env = CartPoleSpin(base, w_a=w_a, w_c=w_c, w_s=w_s_current)
+    # env = base
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.n
     num_layers = 2
 
-    n_dom_modes = 4
+    n_dom_modes = 6
     padded_dim = 64
     kae_size = 32
     p = 2
-    kae = KoopmanAutoencoder(padded_dim, kae_size, n_dom_modes, device).to(device)
-    kae.load_state_dict(torch.load("saved_models_re/KAEs/KAE_state_dict_[4, 64, 32, 0.5, -1, 0.5, 2, 'CARTPOLE_v1']_2025-09-25.pt", weights_only=True, map_location=device))
+    with safe_globals([KoopmanAutoencoder]):
+        kae = torch.load(
+            "saved_models_re/KAEs/KAE_[4, 64, 32, 0.5, -1, 0.5, 2, 'CARTPOLE_v1']_2025-09-25.pth",
+            map_location=device,
+            weights_only=False  # Explicitly allow loading the full object
+        )
     kae.eval()
     # params_traj = torch.tensor(np.load("saved_trajectory/param_trajectory_cartpole_mlp.npy"), device=device, dtype=torch.float32)
     # x_hat, z, z_pred = kae(params_traj)
     # N_O = z.shape[-1]
     # param_sub_all, eigvals = compute_theta_sub_all(kae, z, kae.K)
-    moe = MoE(obs_dim, num_experts=n_dom_modes, num_layers=num_layers).to(device)
-    # moe.load_state_dict(torch.load("saved_models_re/MoEs/moe_cartpole_mlp_retrain_value_spin_{}layers.pt".format(num_layers)))
+    moe = CartpoleMLP(obs_dim, 6).to(device)
+    # moe = MoE(obs_dim, num_experts=n_dom_modes, num_layers=num_layers).to(device)
+    moe.load_state_dict(torch.load("saved_models_re/MoEs/moe_cartpole_mlp_retrain_value_spin_{}layers.pt".format(num_layers)))
     moe.eval()
     # policy_net = CartpoleMLP(obs_dim, act_dim).to(device)
 
@@ -70,9 +81,14 @@ if __name__ == "__main__":
                 x_hat, z, z_pred = kae(obs_tensor_padded)
             N_O = z.shape[-1]
             experts_outputs = get_experts_outputs(kae, z, p, act_dim)
-            weights = moe(obs_tensor)
-            weights = torch.ones_like(weights)
-            sparse_weights = weights  # Using original weights without top-k sparsification
+            experts_outputs = torch.softmax(experts_outputs, dim=-1)
+            extended_experts_outputs = extend_experts_outputs(experts_outputs, act_dim)
+
+            weights = F.softmax(moe(obs_tensor), dim=-1)
+            # extends = torch.diag(torch.ones(act_dim, dtype=weights.dtype, device=weights.device)).tile(1, 1, 1)
+            probs = torch.sum(weights.view(1, n_dom_modes, 1) * extended_experts_outputs, dim=1)
+            # # weights = torch.ones_like(weights)
+            # # sparse_weights = weights  # Using original weights without top-k sparsification
             
             # # Top-2 gating: select top 2 experts and renormalize weights
             # top_k = 2
@@ -83,11 +99,9 @@ if __name__ == "__main__":
             # sparse_weights = torch.zeros_like(weights)
             # sparse_weights.scatter_(-1, top_indices, top_weights)
             
-            # # Compute entropy of the sparse weights
-            # entropy = -torch.sum(sparse_weights * torch.log(sparse_weights + 1e-10), dim=-1).mean()
-
-            logits = sparse_weights.view(1, 1, -1) @ experts_outputs
-            action = torch.argmax(logits).item()
+            # Compute entropy of the sparse weights
+            entropy = -torch.sum(weights * torch.log(weights + 1e-10), dim=-1).mean()
+            action = torch.argmax(probs).item()
             obs, reward, terminated, truncated, info = env.step(action)
             total_reward += reward
             done = terminated or truncated

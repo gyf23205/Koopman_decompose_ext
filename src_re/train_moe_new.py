@@ -4,20 +4,34 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import tqdm
-import wandb
+from models.MoE import MoE
+# import wandb
+import sys
+sys.path.append("/home/yifan/git/Koopman_decompose_ext/src_re/models")  # Add the directory to the Python path
+
 
 from utils import *
 from torch.nn.utils import parameters_to_vector
 from models.MLP import CartpoleMLP
 from envs.CartpoleSpin import CartPoleSpin
 import torch.nn.functional as F
+from torch.serialization import add_safe_globals, safe_globals
+from models.Autoencoder import KoopmanAutoencoder
 
 def ppo_update(dataset, update_epochs, batch_size):
     for _ in range(update_epochs):
         for obs_tensor, act_tensor, logp_tensor, adv_tensor, ret_tensor in DataLoader(dataset, batch_size=batch_size, shuffle=True):
+            if obs_tensor.shape[-1] < padded_dim:
+                pad_size = padded_dim - obs_tensor.shape[-1]
+                obs_tensor_padded = torch.nn.functional.pad(obs_tensor, (0, pad_size), "constant", 1)
+            with torch.no_grad():
+                x_hat, z, z_pred = kae(obs_tensor_padded)
+            # extends = torch.diag(torch.ones(act_dim, dtype=weights.dtype, device=weights.device)).tile(weights.shape[0], 1, 1)
+            experts_outputs = get_experts_outputs(kae, z, p, act_dim)
+            experts_outputs = torch.softmax(experts_outputs, dim=-1)
+            extended_experts_outputs = extend_experts_outputs(experts_outputs, act_dim)
             weights = F.softmax(policy_net(obs_tensor), dim=-1)
-            extends = torch.diag(torch.ones(act_dim, dtype=weights.dtype, device=weights.device)).tile(weights.shape[0], 1, 1)
-            probs = torch.sum(weights.view(batch_size, 2, 1) * extends, dim=1)
+            probs = torch.sum(weights.view(batch_size, n_dom_modes, 1) * extended_experts_outputs, dim=1)
             dist = torch.distributions.Categorical(probs=probs)
             new_logp = dist.log_prob(act_tensor)
             ratio = torch.exp(new_logp - logp_tensor)
@@ -44,9 +58,19 @@ def collect_trajectory(env, step_rollout):
     while timesteps < step_rollout:
         # action, log_prob, dist = select_action(obs, policy_net, device)
         obs_tensor = torch.tensor(obs, dtype=torch.float32).to(device)
+        if obs_tensor.shape[-1] < padded_dim:
+            pad_size = padded_dim - obs_tensor.shape[-1]
+            obs_tensor_padded = torch.nn.functional.pad(obs_tensor, (0, pad_size), "constant", 1).unsqueeze(0)
+        with torch.no_grad():
+            x_hat, z, z_pred = kae(obs_tensor_padded)
+
+        experts_outputs = get_experts_outputs(kae, z, p, act_dim)
+        experts_outputs = torch.softmax(experts_outputs, dim=-1)
+        extended_experts_outputs = extend_experts_outputs(experts_outputs, act_dim)
+
         weights = F.softmax(policy_net(obs_tensor), dim=-1)
-        extends = torch.diag(torch.ones(act_dim, dtype=weights.dtype, device=weights.device)).tile(1, 1, 1)
-        probs = torch.sum(weights.view(1, 2, 1) * extends, dim=1)
+        # extends = torch.diag(torch.ones(act_dim, dtype=weights.dtype, device=weights.device)).tile(1, 1, 1)
+        probs = torch.sum(weights.view(1, n_dom_modes, 1) * extended_experts_outputs, dim=1)
         dist = torch.distributions.Categorical(probs=probs)
         action = dist.sample().item()
         log_prob = dist.log_prob(torch.tensor(action, device=device)).item()
@@ -79,7 +103,18 @@ def validate(env, policy_net, num_episodes=10):
             total_reward = 0
             while not done:
                 obs_tensor = torch.tensor(obs, dtype=torch.float32).to(device)
-                probs = F.softmax(policy_net(obs_tensor), dim=-1)
+                if obs_tensor.shape[-1] < padded_dim:
+                    pad_size = padded_dim - obs_tensor.shape[-1]
+                    obs_tensor_padded = torch.nn.functional.pad(obs_tensor, (0, pad_size), "constant", 1).unsqueeze(0)
+                with torch.no_grad():
+                    x_hat, z, z_pred = kae(obs_tensor_padded)
+
+                experts_outputs = get_experts_outputs(kae, z, p, act_dim)
+                experts_outputs = torch.softmax(experts_outputs, dim=-1)
+                extended_experts_outputs = extend_experts_outputs(experts_outputs, act_dim)
+
+                weights = F.softmax(policy_net(obs_tensor), dim=-1)
+                probs = torch.sum(weights.view(1, n_dom_modes, 1) * extended_experts_outputs, dim=1)
                 action = torch.argmax(probs).item()
                 obs, reward, terminated, truncated, info = env.step(action)
                 total_reward += reward
@@ -113,6 +148,11 @@ if __name__ == "__main__":
     # w_e_initial = 0.6
     low = -0.2
     high = 0.2
+    padded_dim = 64
+    p = 2
+    save = True
+    num_layers = 2  # For naming saved models
+    n_dom_modes = 6
 
     # Create the CartPole environment
     base = gym.make("CartPole-v1")
@@ -120,8 +160,18 @@ if __name__ == "__main__":
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.n
 
+
+    # Load Koopman Autoencoder
+    with safe_globals([KoopmanAutoencoder]):
+        kae = torch.load(
+            "saved_models_re/KAEs/KAE_[4, 64, 32, 0.5, -1, 0.5, 2, 'CARTPOLE_v1']_2025-09-25.pth",
+            map_location=device,
+            weights_only=False  # Explicitly allow loading the full object
+        )
+    kae.eval()
     # Policy and value networks
-    policy_net = CartpoleMLP(obs_dim, act_dim).to(device)
+    # policy_net = MoE(obs_dim, num_experts=n_dom_modes, num_layers=num_layers).to(device)
+    policy_net = CartpoleMLP(obs_dim, 6).to(device)
     policy_net.train()
     value_net = nn.Sequential(
         nn.Linear(obs_dim, 64),
@@ -135,8 +185,8 @@ if __name__ == "__main__":
     value_optimizer = optim.Adam(value_net.parameters(), lr=learning_rate)
 
     # Initialize wandb for tracking
-    wandb.login(key='1888b9830153065d084181ffc29812cd1011b84b')
-    wandb.init(project="Koopman_ext", name="train_cartpole")
+    # wandb.login(key='1888b9830153065d084181ffc29812cd1011b84b')
+    # wandb.init(project="Koopman_ext", name="train_cartpole")
 
     obs, info = env.reset(options={'low': low, 'high': high})
     episode_rewards = []
@@ -161,21 +211,15 @@ if __name__ == "__main__":
             val_reward = validate(env, policy_net)
             validation_rewards.append(val_reward)
             print(f"Epoch {epoch+1}: Validation reward: {val_reward:.2f}")
-            wandb.log({"validation_reward": val_reward, "epoch": epoch+1})
+            # wandb.log({"validation_reward": val_reward, "epoch": epoch+1})
             
             # Save best model
             if val_reward > best_val_reward:
                 best_val_reward = val_reward
-                torch.save(policy_net.state_dict(), "saved_models_re/originals/ppo_cartpole_spin_policy_best.pt")
-                torch.save(value_net.state_dict(), "saved_models_re/originals/ppo_cartpole_spin_value_best.pt")
-                print(f"New best model with reward {best_val_reward:.2f}")
-
-    # Save the final trained models
-    torch.save(policy_net.state_dict(), "saved_models_re/originals/ppo_cartpole_spin_policy.pt")
-    torch.save(value_net.state_dict(), "saved_models_re/originals/ppo_cartpole_spin_value.pt")
-    
-    # Save validation rewards history
-    np.save("saved_models_re/validation_rewards_cartpole_spin.npy", np.array(validation_rewards))
+                if save:
+                    # Save MoE model
+                    torch.save(policy_net.state_dict(), "saved_models_re/MoEs/moe_cartpole_mlp_retrain_value_spin_{}layers.pt".format(num_layers))
+                    print(f"New best reward: {best_val_reward} at epoch {epoch + 1}, model saved.")
 
     # Close wandb
-    wandb.finish()
+    # wandb.finish()

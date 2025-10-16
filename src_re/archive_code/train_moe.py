@@ -2,7 +2,7 @@ import gymnasium as gym
 import torch
 import numpy as np
 # import matplotlib.pyplot as plt
-import wandb
+# import wan/db
 from datetime import datetime
 
 # from matplotlib.animation import FuncAnimation
@@ -12,9 +12,12 @@ from models.MLP import ValueMLP
 from models.MoE import MoE
 from utils import *
 from envs.CartpoleSpin import CartPoleSpin
+from models.MLP import CartpoleMLP
+import torch.nn.functional as F
 # from torch.nn.utils import parameters_to_vector
 import sys
 sys.path.append("/home/yifan/git/Koopman_decompose_ext/src_re/models")  # Add the directory to the Python path
+from torch.serialization import add_safe_globals, safe_globals
 
 
 def ppo_update(dataset):
@@ -27,25 +30,28 @@ def ppo_update(dataset):
                 x_hat, z, z_pred = kae(obs_tensor_padded)
             N_O = z.shape[-1]
             experts_outputs = get_experts_outputs(kae, z, p, act_dim=act_dim)
-            weights = moe(obs_tensor)
-            # sparse_weights = weights  # Using original weights without top-k sparsification
-            
-            # Top-2 gating: select top 2 experts and renormalize weights
-            top_weights, top_indices = torch.topk(weights, top_k, dim=-1)
-            top_weights = torch.softmax(top_weights, dim=-1)  # Renormalize top-2 weights
-            
-            # Create sparse weights tensor
-            mask = torch.zeros_like(weights).scatter_(-1, top_indices, 1)
-            # sparse_weights = torch.zeros_like(weights)
-            # sparse_weights.scatter_(-1, top_indices, top_weights)
-            sparse_weights = weights * mask
-            mean_weights = weights.mean(0)
-            mean_usage = mask.mean(0)
-            loss_balance = (mean_weights * mean_usage).sum()
-            entropy = -torch.sum(sparse_weights * torch.log(sparse_weights + 1e-10), dim=-1).mean()
+            experts_outputs = torch.softmax(experts_outputs, dim=-1)
+            extended_experts_outputs = extend_experts_outputs(experts_outputs, act_dim)
+            weights = F.softmax(moe(obs_tensor), dim=-1)
+            if sparse:
+                # Top-2 gating: select top 2 experts and renormalize weights
+                top_weights, top_indices = torch.topk(weights, top_k, dim=-1)
+                top_weights = torch.softmax(top_weights, dim=-1)  # Renormalize top-2 weights
+                
+                # Create sparse weights tensor
+                mask = torch.zeros_like(weights).scatter_(-1, top_indices, 1)
+                sparse_weights = weights * mask
+                weights = sparse_weights
+                # Balance loss
+                mean_weights = weights.mean(0)
+                mean_usage = mask.mean(0)
+                loss_balance = (mean_weights * mean_usage).sum()
+            else:
+                loss_balance = torch.tensor(0.0)
+            entropy = -torch.sum(weights * torch.log(weights + 1e-10), dim=-1).mean()
 
-            logits = torch.sum(sparse_weights.unsqueeze(-1) * experts_outputs, dim=1)
-            dist = torch.distributions.Categorical(logits=logits.view(-1, act_dim))
+            probs = torch.sum(weights.view(batch_size, n_dom_modes, 1) * extended_experts_outputs, dim=1)
+            dist = torch.distributions.Categorical(probs=probs.view(-1, act_dim))
             new_logp = dist.log_prob(act_tensor)
             ratio = torch.exp(new_logp - logp_tensor)
             surr1 = ratio * adv_tensor
@@ -55,31 +61,40 @@ def ppo_update(dataset):
             value_preds = value_net(obs_tensor).squeeze()
             value_loss = nn.functional.mse_loss(value_preds, ret_tensor)
 
-            loss = w_t * task_loss + w_v * value_loss  + w_b * loss_balance - w_e * entropy
+
+            moe_optimizer.zero_grad()
+            task_loss.backward()
+            moe_optimizer.step()
 
             value_optimizer.zero_grad()
-            moe_optimizer.zero_grad()
-
-            loss.backward()
-
-            # value_loss.backward()
-            torch.nn.utils.clip_grad_norm_(value_net.parameters(), max_norm=5.0)
+            value_loss.backward()
             value_optimizer.step()
 
-            if ep >= pretrain_epochs:
-                # task_loss.backward(retain_graph=True)
-                torch.nn.utils.clip_grad_norm_(moe.parameters(), max_norm=5.0)
-                moe_optimizer.step()
+            # loss = w_t * task_loss + w_v * value_loss  + w_b * loss_balance - w_e * entropy
+            # value_optimizer.zero_grad()
+            # moe_optimizer.zero_grad()
+
+            # loss.backward()
+
+            # value_loss.backward()
+            # torch.nn.utils.clip_grad_norm_(value_net.parameters(), max_norm=5.0)
+            # value_optimizer.step()
+
+            # if ep >= pretrain_epochs:
+            #     # task_loss.backward(retain_graph=True)
+            #     torch.nn.utils.clip_grad_norm_(moe.parameters(), max_norm=5.0)
+            #     moe_optimizer.step()
 
             grad_norm_moe = compute_grad_norm(moe)
             grad_norm_value = compute_grad_norm(value_net)
-            wandb.log({"MoE Grad Norm": grad_norm_moe,
-                       "Value Grad Norm": grad_norm_value,
-                       "MoE Loss": task_loss.item(),
-                       "Value Loss": value_loss.item(),
-                        "Balance Loss": loss_balance.item(),
-                        "Entropy": entropy.item(),
-                       "loss_all": loss.item() + value_loss.item()})
+            # wandb.log({"MoE Grad Norm": grad_norm_moe,
+            #            "Value Grad Norm": grad_norm_value,
+            #            "MoE Loss": task_loss.item(),
+            #            "Value Loss": value_loss.item(),
+            #             "Balance Loss": loss_balance.item(),
+            #             "Entropy": entropy.item(),
+            #            "task_loss": task_loss.item(),
+            #            "value_loss": value_loss.item()})
 
 def collect_trajectory(env, value_net):
     obs_buf, act_buf, logp_buf, rew_buf, done_buf, val_buf = [], [], [], [], [], []
@@ -95,20 +110,22 @@ def collect_trajectory(env, value_net):
             x_hat, z, z_pred = kae(obs_tensor_padded)
         N_O = z.shape[-1]
         experts_outputs = get_experts_outputs(kae, z, p, act_dim)
-        weights = moe(obs_tensor)
-        weights = weights + torch.randn_like(weights) * 1e-2
-        # sparse_weights = weights  # Using original weights without top-k sparsification
+        experts_outputs = torch.softmax(experts_outputs, dim=-1)
+        extended_experts_outputs = extend_experts_outputs(experts_outputs, act_dim)
+        weights = F.softmax(moe(obs_tensor), dim=-1)
+        # weights = weights + torch.randn_like(weights) * 1e-2
+        if sparse:
+            # Top-2 gating: select top 2 experts and renormalize weights
+            top_weights, top_indices = torch.topk(weights, top_k, dim=-1)
+            top_weights = torch.softmax(top_weights, dim=-1)  # Renormalize top-2 weights
+            
+            # Create sparse weights tensor
+            mask = torch.zeros_like(weights).scatter_(-1, top_indices, 1)
+            sparse_weights = weights * mask
+            weights = sparse_weights
 
-        # Top-2 gating: select top 2 experts and renormalize weights
-        top_weights, top_indices = torch.topk(weights, top_k, dim=-1)
-        top_weights = torch.softmax(top_weights, dim=-1)  # Renormalize top-2 weights
-        
-        # Create sparse weights tensor
-        sparse_weights = torch.zeros_like(weights)
-        sparse_weights.scatter_(-1, top_indices, top_weights)
-
-        logits = sparse_weights.view(1, 1, -1) @ experts_outputs
-        dist = torch.distributions.Categorical(logits=logits.view(-1, act_dim))
+        probs = torch.sum(weights.view(1, n_dom_modes, 1) * extended_experts_outputs, dim=1)
+        dist = torch.distributions.Categorical(probs=probs.view(-1, act_dim))
         action = dist.sample().item()
         log_prob = dist.log_prob(torch.tensor(action, device=device)).item()
         value = value_net(torch.tensor(obs, dtype=torch.float32).to(device))
@@ -146,22 +163,24 @@ def val(moe, epoches=5):
                     x_hat, z, z_pred = kae(obs_tensor_padded)
                 N_O = z.shape[-1]
                 experts_outputs = get_experts_outputs(kae, z, p, act_dim)
-                weights = moe(obs_tensor)
-                # sparse_weights = weights  # Using original weights without top-k sparsification
-                
-                # Top-2 gating: select top 2 experts and renormalize weights
-                top_weights, top_indices = torch.topk(weights, top_k, dim=-1)
-                top_weights = torch.softmax(top_weights, dim=-1)  # Renormalize top-2 weights
-                
-                # Create sparse weights tensor
-                sparse_weights = torch.zeros_like(weights)
-                sparse_weights.scatter_(-1, top_indices, top_weights)
-                
-                entropy = -torch.sum(sparse_weights * torch.log(sparse_weights + 1e-10), dim=-1).mean()
+                experts_outputs = torch.softmax(experts_outputs, dim=-1)
+                extended_experts_outputs = extend_experts_outputs(experts_outputs, act_dim)
+                weights = F.softmax(moe(obs_tensor), dim=-1)
+                if sparse:
+                    # Top-2 gating: select top 2 experts and renormalize weights
+                    top_weights, top_indices = torch.topk(weights, top_k, dim=-1)
+                    top_weights = torch.softmax(top_weights, dim=-1)  # Renormalize top-2 weights
+                    
+                    # Create sparse weights tensor
+                    mask = torch.zeros_like(weights).scatter_(-1, top_indices, 1)
+                    sparse_weights = weights * mask
+                    weights = sparse_weights
+
+                entropy = -torch.sum(weights * torch.log(weights + 1e-10), dim=-1).mean()
                 total_entropy += entropy.item()
 
-                logits = sparse_weights.view(1, 1, -1) @ experts_outputs
-                action = torch.argmax(logits).item()
+                probs = torch.sum(weights.view(1, n_dom_modes, 1) * extended_experts_outputs, dim=1)
+                action = torch.argmax(probs).item()
                 obs, reward, terminated, truncated, info = env.step(action)
                 total_reward += reward
                 done = terminated or truncated
@@ -176,18 +195,18 @@ if __name__ == "__main__":
     print('Currently using... '+str(device))
 
     # Set training to be deterministic
-    seed = 10
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    # seed = 10
+    # torch.manual_seed(seed)
+    # torch.cuda.manual_seed(seed)
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
+    # os.environ['PYTHONHASHSEED'] = str(seed)
     
 
     # Allowlist the KoopmanAutoencoder class
     # torch.serialization.add_safe_globals([KoopmanAutoencoder])
 
-    wandb.login(key='1888b9830153065d084181ffc29812cd1011b84b')
+    # wandb.login(key='1888b9830153065d084181ffc29812cd1011b84b')
 
     # wandb.init(project="Koopman_ext",
     #         name = "MoE_sweep_Cartpole_spin_weights")
@@ -195,14 +214,14 @@ if __name__ == "__main__":
     # Hyperparameters
     w_t = 1.0
     w_v = 0.2
-    # w_a = 0.08
-    # w_c = 0.5
-    # w_s = 1.07
-    # w_s_initial = 0.1  # Start with lower w_s
-    # w_s_final = 1.07   # 1.07 Final target w_s
-    # w_s_current = w_s_initial
-    w_b = 0.2
-    w_e_initial = 0.6
+    w_a = 0.08
+    w_c = 0.5
+    w_s = 1.07
+    w_s_initial = 0.1  # Start with lower w_s
+    w_s_final = 1.07   # 1.07 Final target w_s
+    w_s_current = w_s_initial
+    w_b = 0.0
+    w_e_initial = 0.0
     low = -0.2
     high = 0.2
 
@@ -211,53 +230,58 @@ if __name__ == "__main__":
     step_rollout = 512
     batch_size = 128 # 128
     clip_epsilon = 0.2 # 0.38
-    num_layers = 2 # 3
-    p = 3
+    num_layers = 4 # 3
+    p = 2
     top_k = 2
-    kae_size = 48
+    kae_size = 32
+    sparse = False
 
-    padded_dim = 128
+    padded_dim = 64
     pretrain_epochs = 0
-    ppo_epochs = 800 # 500 
-    update_epochs = 5
-    n_dom_modes = 8
+    ppo_epochs = 500 # 500 
+    update_epochs = 10
+    n_dom_modes = 2
     frames = []  # To store frames for the GIF
     n_frames = []
 
     base = gym.make("CartPole-v1")
-    env = base
-    # env = CartPoleSpin(base, w_a=w_a, w_c=w_c, w_s=w_s_current)
+    # env = base
+    env = CartPoleSpin(base, w_a=w_a, w_c=w_c, w_s=w_s_current)
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.n
 
     current_date = datetime.now().strftime("%Y-%m-%d")
-    wandb.login(key='1888b9830153065d084181ffc29812cd1011b84b')
-    wandb.init(project="Koopman_ext",
-            name = 'spin2invert' + str(current_date),
-            config={
-                "learning_rate": learning_rate,
-                "ppo_epochs": ppo_epochs,
-                "step_rollout": step_rollout,
-                "update_epochs": update_epochs,
-                "batch_size": batch_size,
-                "clip_epsilon": clip_epsilon,
-                "n_dom_modes": n_dom_modes,
-                "num_layers": num_layers,
-                'p': p, 
-                "padded_dim": padded_dim,
-                # "w_a": w_a,
-                # "w_c": w_c,
-                # "w_s_initial": w_s_initial,
-                # "w_s_final": w_s_final,
-                "w_b": w_b,
-                "w_e": w_e_initial,
-                "top_k": top_k,
-                "pretrain_epochs": pretrain_epochs
-        })
+    # wandb.login(key='1888b9830153065d084181ffc29812cd1011b84b')
+    # wandb.init(project="Koopman_ext",
+    #         name = 'invert2spin' + str(current_date),
+    #         config={
+    #             "learning_rate": learning_rate,
+    #             "ppo_epochs": ppo_epochs,
+    #             "step_rollout": step_rollout,
+    #             "update_epochs": update_epochs,
+    #             "batch_size": batch_size,
+    #             "clip_epsilon": clip_epsilon,
+    #             "n_dom_modes": n_dom_modes,
+    #             "num_layers": num_layers,
+    #             'p': p, 
+    #             "padded_dim": padded_dim,
+    #             # "w_a": w_a,
+    #             # "w_c": w_c,
+    #             # "w_s_initial": w_s_initial,
+    #             # "w_s_final": w_s_final,
+    #             "w_b": w_b,
+    #             "w_e": w_e_initial,
+    #             "top_k": top_k,
+    #             "pretrain_epochs": pretrain_epochs
+    #     })
 
     # networks
-    kae = KoopmanAutoencoder(padded_dim, kae_size, n_dom_modes, device).to(device)
-    kae.load_state_dict(torch.load("saved_models_re/KAEs/KAE_state_dict_[8, 128, 48, 0.5, 0.4, 0.1, 3, 'CARTPOLE_v1']_2025-09-17.pt", weights_only=True, map_location=device))
+    with safe_globals([KoopmanAutoencoder]):
+        kae = torch.load(
+            "saved_models_re/KAEs/KAE_[4, 64, 32, 0.5, -1, 0.5, 2, 'CARTPOLE_v1']_2025-09-25.pth",
+            map_location=device,
+            weights_only=False  # Explicitly allow loading the full object
+        )
     kae.eval()
     # Retraining the value network
     value_net = ValueMLP(obs_dim).to(device)
@@ -271,7 +295,8 @@ if __name__ == "__main__":
     # value_net.load_state_dict(new_state_dict, strict=False)
     # value_net.eval()
 
-    moe = MoE(obs_dim, num_experts=n_dom_modes, num_layers=num_layers).to(device)
+    # moe = MoE(obs_dim, num_experts=n_dom_modes, num_layers=num_layers).to(device)
+    moe = CartpoleMLP(obs_dim, act_dim).to(device)
     moe_optimizer = optim.Adam(moe.parameters(), lr=learning_rate)
     schelduler = optim.lr_scheduler.StepLR(moe_optimizer, step_size=100, gamma=0.5, verbose=True)
 
@@ -306,7 +331,7 @@ if __name__ == "__main__":
         # Learning rate scheduling
         if (ep + 1) % 2 == 0:
             schelduler.step()
-        wandb.log({"Learning Rate": schelduler.get_last_lr()[0]})
+        # wandb.log({"Learning Rate": schelduler.get_last_lr()[0]})
 
         # Validation
         if (ep + 1) % 10 == 0:
@@ -314,14 +339,14 @@ if __name__ == "__main__":
             reward_temp_normalized = reward_temp
             # reward_temp_normalized = reward_temp / (w_a + w_c + w_s_current)  # Use current w_s for normalization
             print(f"Validation reward at epoch {ep + 1}: {reward_temp} (normalized: {reward_temp_normalized})")
-            wandb.log({"Validation Reward": reward_temp})
+            # wandb.log({"Validation Reward": reward_temp})
             print(f"Validation entropy at epoch {ep + 1}: {entropy}")
-            wandb.log({"Validation Entropy": entropy})
+            # wandb.log({"Validation Entropy": entropy})
             if reward_temp_normalized > reward_best:
                 reward_best = reward_temp_normalized
                 if save:
                     # Save MoE model
                     torch.save(moe.state_dict(), "saved_models_re/MoEs/moe_cartpole_mlp_retrain_value_spin_{}layers.pt".format(num_layers))
                     print(f"New best reward: {reward_best} at epoch {ep + 1}, model saved.")
-    wandb.log({"reward_best_normalized": reward_best})  # Use final w_s for final normalization
-    wandb.finish()
+    # wandb.log({"reward_best_normalized": reward_best})  # Use final w_s for final normalization
+    # wandb.finish()

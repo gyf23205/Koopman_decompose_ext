@@ -6,14 +6,26 @@ from matplotlib.animation import FuncAnimation
 from models.MLP import CartpoleMLP
 from envs.CartpoleSpin import CartPoleSpin
 
+
+w_a = 0.08
+w_c = 0.5
+w_s = 1.07
+w_s_initial = 0.1  # Start with lower w_s
+w_s_final = 1.07   # 1.07 Final target w_s
+w_s_current = w_s_initial
+# w_b = 0.2
+# w_e_initial = 0.6
+low = -0.2
+high = 0.2
+
 base = gym.make("CartPole-v1", render_mode="rgb_array")
-env = CartPoleSpin(base)
+env = CartPoleSpin(base, w_a=w_a, w_c=w_c, w_s=w_s_current)
 
 obs_dim = env.observation_space.shape[0]
 act_dim = env.action_space.n
 
 policy_net = CartpoleMLP(obs_dim, act_dim)
-policy_net.load_state_dict(torch.load("saved_models_re/originals/ppo_cartpole_swing_policy_best.pt"))
+policy_net.load_state_dict(torch.load("saved_models_re/originals/ppo_cartpole_spin_policy_best.pt"))
 policy_net.eval()
 
 num_episodes = 20
@@ -23,7 +35,7 @@ n_frames = []
 
 for _ in range(num_episodes):
     f = []
-    obs, info = env.reset(options={"low": -0.2, "high": 0.2})
+    obs, info = env.reset(options={"low": low, "high": high})
     done = False
     total_reward = 0
     while not done:
