@@ -295,7 +295,7 @@ def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conju
 
         phi = eigvec_left @ z_next.to(torch.complex64)
         if conjugate:
-            temp = (phi[mode_number]*v[:,mode_number]).conj
+            temp = (phi[mode_number]*v[:,mode_number]).conj()
         else:
             temp = phi[mode_number]*v[:,mode_number]
     mode_output = temp
