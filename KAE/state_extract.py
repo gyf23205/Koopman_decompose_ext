@@ -18,7 +18,7 @@ def p_state_extract(model: nn.Module, x: torch.Tensor, p: int,
     Returns:
         states: dict with "input", "step_k", "output", and/or specific layers
     """
-    p = p-1 # Fixing index
+    # p = p-1 # Fixing index
 
     # --- get ordered list of submodules (skip root) ---
     layers = OrderedDict()
@@ -28,7 +28,10 @@ def p_state_extract(model: nn.Module, x: torch.Tensor, p: int,
 
     layer_names = list(layers.keys())
     n = len(layer_names)
+ 
     chunk_size = (n + p - 1) // p   # ceil division
+    # print('total '+str(n)+' layers detected - slice with size of '+str(chunk_size))
+    # print(layer_names)
 
     states = {"input": x}
     outputs = {}
@@ -62,7 +65,7 @@ def p_state_extract(model: nn.Module, x: torch.Tensor, p: int,
     elif keep_all:  # keep everything
         states.update(outputs)
     else:  # default: just last in each chunk
-        for step in range(p):
+        for step in range(p-1):
             start = step * chunk_size
             end   = min((step + 1) * chunk_size, n)
             if start >= end:

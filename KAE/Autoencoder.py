@@ -26,33 +26,47 @@ class Encoder_walk(nn.Module):
     def __init__(self, state_dim, hidden_dim, observable_dim): 
         super(Encoder_walk, self).__init__()
 
-        # print('Walking Tanh ver')
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(state_dim, hidden_dim*4),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*4, hidden_dim*3),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*3, hidden_dim*2),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*2, hidden_dim),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim, observable_dim),
-        #     nn.Tanh()
-        # )
-
-        print('Walking Tanh ver 2')
+        print('Walking Tanh ver')
         self.encoder = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim*4),
+            nn.Linear(state_dim, hidden_dim*3),
             nn.Tanh(),
-            nn.Linear(hidden_dim*4, hidden_dim*4),
+            nn.Linear(hidden_dim*3, hidden_dim*2),
             nn.Tanh(),
-            nn.Linear(hidden_dim*4, hidden_dim*4),
-            nn.Tanh(),
-            nn.Linear(hidden_dim*4, hidden_dim),
+            nn.Linear(hidden_dim*2, hidden_dim),
             nn.Tanh(),
             nn.Linear(hidden_dim, observable_dim),
             nn.Tanh()
         )
+
+        # print('Walking Tanh Deep ver')
+        # self.encoder = nn.Sequential(
+        #     nn.Linear(state_dim, hidden_dim*4),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim*4, hidden_dim*4),
+        #     nn.Tanh(),            
+        #     nn.Linear(hidden_dim*4, hidden_dim*4),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim*4, hidden_dim*3),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim*3, hidden_dim*3),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim*3, hidden_dim*3),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim*3, hidden_dim*2),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim*2, hidden_dim*2),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim*2, hidden_dim*2),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim*2, hidden_dim),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim, hidden_dim),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim, hidden_dim),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim, observable_dim),
+        #     nn.Tanh()
+        # )
         
     def forward(self, x):
         return self.encoder(x)
