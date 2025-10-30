@@ -271,13 +271,27 @@ def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_di
 
 def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
     ko = kae.K
+    eigvals, eigvec_left = torch.linalg.eig(ko.T)
+    eigvals = eigvals.conj().T
+    eigvec_left = eigvec_left.conj().T
+    eigvec_left_inv = torch.linalg.inv(eigvec_left)
+
+    # # detect risky cases that trigger autograd's phase gauge check
+    # # (no new args; tolerances are internal)
+    # _imag_tol = 1e-12
+    # _gap_tol  = 1e-6
+    # lam = eigvals[mode_number]
+    # is_complex_mode = (lam.imag.abs() > _imag_tol)
+    # if eigvals.numel() > 1:
+    #     gaps = (eigvals - lam).abs()
+    #     gaps[mode_number] = float('inf')
+    #     is_near_degenerate = (gaps.min() < _gap_tol)
+    # else:
+    #     is_near_degenerate = False
+
+    # if not (is_complex_mode or is_near_degenerate):
     if propagation:
-        eigvals, eigvec_left = torch.linalg.eig(ko.T)
-        eigvals = eigvals.conj().T
-        eigvec_left = eigvec_left.conj().T
-        eigvec_left_inv = torch.linalg.inv(eigvec_left)
-        B = kae.decoder.linear.weight.detach().clone()
-        B = B.to(torch.complex64)
+        B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
         v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
         phi = eigvec_left @ z.to(torch.complex64)
@@ -286,11 +300,7 @@ def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conju
         else:
             temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
     else:
-        _, eigvec_left = torch.linalg.eig(ko.T)
-        eigvec_left = eigvec_left.conj().T
-        eigvec_left_inv = torch.linalg.inv(eigvec_left)
-        B = kae.decoder.linear.weight.detach().clone()
-        B = B.to(torch.complex64)
+        B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
         v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
         phi = eigvec_left @ z_next.to(torch.complex64)
@@ -298,6 +308,33 @@ def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conju
             temp = (phi[mode_number]*v[:,mode_number]).conj()
         else:
             temp = phi[mode_number]*v[:,mode_number]
+    
+    # else:
+    # # ---- RISKY: compute identical forward but stop grad only through eig ----
+    #     if is_complex_mode:
+    #          print("ILL POSED KOOPMAN FLAG, SKIP EIG GRAD FOR THIS STEP")
+    #     if is_near_degenerate:
+    #          print("DEGENERATED KOOPMAN FLAG, SKIP EIG GRAD FOR THIS STEP")
+    #     with torch.no_grad():
+    #         eigvals_ng, eigvec_left_ng = torch.linalg.eig(ko.T)
+    #         eigvec_left_ng = eigvec_left_ng.conj().T
+    #         eigvec_left_inv_ng = torch.linalg.inv(eigvec_left_ng)
+    #         B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
+    #         v = (B @ eigvec_left_inv_ng)
+
+    #         if propagation:
+    #             phi = eigvec_left_ng @ z.to(torch.complex64)
+    #             if conjugate:
+    #                 temp = ((eigvals_ng[mode_number]**p)*phi[mode_number]*v[:,mode_number]).conj()
+    #             else:
+    #                 temp = (eigvals_ng[mode_number]**p)*phi[mode_number]*v[:,mode_number]
+    #         else:
+    #             phi = eigvec_left_ng @ z_next.to(torch.complex64)
+    #             if conjugate:
+    #                 temp = (phi[mode_number]*v[:,mode_number]).conj()
+    #             else:
+    #                 temp = phi[mode_number]*v[:,mode_number]
+
     mode_output = temp
     return mode_output
 
