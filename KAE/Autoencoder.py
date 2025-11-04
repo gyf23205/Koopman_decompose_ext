@@ -28,9 +28,9 @@ class Encoder_walk(nn.Module):
 
         # print('Walking Tanh ver')
         # self.encoder = nn.Sequential(
-        #     nn.Linear(state_dim, hidden_dim*3),
+        #     nn.Linear(state_dim, hidden_dim*2),
         #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*3, hidden_dim*2),
+        #     nn.Linear(hidden_dim*2, hidden_dim*2),
         #     nn.Tanh(),
         #     nn.Linear(hidden_dim*2, hidden_dim),
         #     nn.Tanh(),
@@ -38,9 +38,25 @@ class Encoder_walk(nn.Module):
         #     nn.Tanh()
         # )
 
-        # print('Walking Tanh ver')
+        print('Walking Tanh ver')
+        self.encoder = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim*4),
+            nn.Tanh(),
+            nn.Linear(hidden_dim*4, hidden_dim*3),
+            nn.Tanh(),
+            nn.Linear(hidden_dim*3, hidden_dim*2),
+            nn.Tanh(),
+            nn.Linear(hidden_dim*2, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, observable_dim),
+            nn.Tanh()
+        )
+
+        # print('Walking Tanh Int ver')
         # self.encoder = nn.Sequential(
         #     nn.Linear(state_dim, hidden_dim*4),
+        #     nn.Tanh(),
+        #     nn.Linear(hidden_dim*4, hidden_dim*4),
         #     nn.Tanh(),
         #     nn.Linear(hidden_dim*4, hidden_dim*3),
         #     nn.Tanh(),
@@ -51,28 +67,6 @@ class Encoder_walk(nn.Module):
         #     nn.Linear(hidden_dim, observable_dim),
         #     nn.Tanh()
         # )
-
-        print('Walking Tanh Int ver')
-        self.encoder = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim*4),
-            nn.Tanh(),
-            nn.Linear(hidden_dim*4, hidden_dim*4),
-            nn.Tanh(),            
-            nn.Linear(hidden_dim*4, hidden_dim*3),
-            nn.Tanh(),
-            nn.Linear(hidden_dim*3, hidden_dim*3),
-            nn.Tanh(),
-            nn.Linear(hidden_dim*3, hidden_dim*2),
-            nn.Tanh(),
-            nn.Linear(hidden_dim*2, hidden_dim*2),
-            nn.Tanh(),
-            nn.Linear(hidden_dim*2, hidden_dim),
-            nn.Tanh(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.Tanh(),
-            nn.Linear(hidden_dim, observable_dim),
-            nn.Tanh()
-        )
 
         # print('Walking Tanh Deep ver')
         # self.encoder = nn.Sequential(
@@ -141,14 +135,10 @@ class KoopmanAutoencoder(nn.Module):
         return x_hat, z, y_hat
         
     def compute_koopman_operator(self, latent_X, latent_Y,device):
-        # print(latent_X.shape, latent_Y.shape)
         latent_X = latent_X.view(-1, latent_X.size(-1))  # [N, d]
         latent_Y = latent_Y.view(-1, latent_Y.size(-1))  # [N, d]
-
         X_pseudo_inv = torch.linalg.pinv(latent_X.T)  # Compute pseudo-inverse of latent_X
-        # self.K = torch.matmul(latent_Y.T, X_pseudo_inv.T).to(device)  # K = Y * X^+
-        self.K = (latent_Y.T @ X_pseudo_inv).to(device)
-        # print(self.K.shape)
+        self.K = latent_Y.T @ X_pseudo_inv
 
 class KoopmanAutoencoder_walk(nn.Module):
     def __init__(self, state_dim, hidden_dim, observable_dim,device):
@@ -176,9 +166,9 @@ class KoopmanAutoencoder_walk(nn.Module):
     
         
     def compute_koopman_operator(self, latent_X, latent_Y, device):
-        # print(latent_X.shape, latent_Y.shape)
-        latent_X = latent_X.view(-1, latent_X.size(-1))  # [N, d]
-        latent_Y = latent_Y.view(-1, latent_Y.size(-1))  # [N, d]
+        # # # print(latent_X.shape, latent_Y.shape)
+        # latent_X = latent_X.view(-1, latent_X.size(-1))  # [N, d]
+        # latent_Y = latent_Y.view(-1, latent_Y.size(-1))  # [N, d]
 
         # damping=1e-4
         # eps=1e-8
@@ -198,17 +188,22 @@ class KoopmanAutoencoder_walk(nn.Module):
         # # X_pseudo_inv = torch.linalg.pinv(latent_X.T)  # Compute pseudo-inverse of latent_X
         # self.K = latent_Y.T @ X_pseudo_inv
 
-        damping=1e-6
-        d = latent_X.size(1)
-        I = torch.eye(d, device=device, dtype=latent_X.dtype)
+        # damping=1e-6
+        # d = latent_X.size(1)
+        # I = torch.eye(d, device=device, dtype=latent_X.dtype)
 
-        # single GEMM for both products
-        XY = torch.cat([latent_X, latent_Y], dim=1)           # [N, 2d]
-        XtXY = latent_X.T @ XY                                # [d, 2d]
-        XtX, XtY = XtXY[:, :d], XtXY[:, d:]                   # split results
+        # # single GEMM for both products
+        # XY = torch.cat([latent_X, latent_Y], dim=1)           # [N, 2d]
+        # XtXY = latent_X.T @ XY                                # [d, 2d]
+        # XtX, XtY = XtXY[:, :d], XtXY[:, d:]                   # split results
 
-        K_T = torch.linalg.solve(XtX + damping * I, XtY)
-        self.K = K_T.T                         # [d, d]
+        # K_T = torch.linalg.solve(XtX + damping * I, XtY)
+        # self.K = K_T.T                         # [d, d]
+
+        latent_X = latent_X.view(-1, latent_X.size(-1))  # [N, d]
+        latent_Y = latent_Y.view(-1, latent_Y.size(-1))  # [N, d]
+        X_pseudo_inv = torch.linalg.pinv(latent_X.T)  # Compute pseudo-inverse of latent_X
+        self.K = latent_Y.T @ X_pseudo_inv
         
 
 class Original_network(nn.Module):

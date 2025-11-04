@@ -108,101 +108,101 @@ def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p,
     loss_kae = c1*recon_loss + c2*state_pred_loss + c3*koopman_pred_loss    
     return loss_kae, latent_x
 
-# def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim, state_bound_lo, state_bound_hi, 
-#                    padded_dimension, p, model, device):
+def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim, state_bound_lo, state_bound_hi, 
+                   padded_dimension, p, model, device):
     
-#     kae = model
-#     loss_dist = 0
-#     tol = 1e-12
-
-#     def is_real(z, tol=1e-12):
-#         return abs(z.imag) <= tol
-
-#     rep_idxs = []
-#     for i, lam in enumerate(current_eig):
-#         if lam.imag > tol:
-#             rep_idxs.append(i)
-#         elif is_real(lam, tol):
-#             rep_idxs.append(i)
-
-#     print("loop start")
-
-#     for a, i in enumerate(rep_idxs):
-#         for j in rep_idxs[a+1:]:
-#             loss_dist_temp = torch.zeros(1).to(device)
-#             loss_dist_temp_1 = torch.zeros(1).to(device)
-#             loss_dist_temp_2 = torch.zeros(1).to(device)
-#             # print(loss_dist_temp, loss_dist_temp_1, loss_dist_temp_2)
-
-#             for k in range(0,loss_dist_mc_sample_num):
-#                 random_input_loss_dist = torch.rand(1, obs_dim, device=device) * (state_bound_hi - state_bound_lo) + state_bound_lo
-#                 pad_in_loss_dist = torch.ones(random_input_loss_dist.size(0), padded_dimension - obs_dim, device=device)
-#                 aug_input_loss_dist = torch.cat([random_input_loss_dist, pad_in_loss_dist], dim=1)
-#                 _,z_loss_dist,_ = kae(aug_input_loss_dist)
-
-#                 loss_dist_temp_1 = stt_decompose_mode(kae, z_loss_dist.T,_, i, p, propagation = True)
-#                 loss_dist_temp_2 = stt_decompose_mode(kae, z_loss_dist.T,_, j, p, propagation = True)
-#                 loss_dist_temp = loss_dist_temp + loss_dist_temp_1*loss_dist_temp_2.conj()
-
-#             loss_dist = loss_dist + (loss_dist_temp/loss_dist_mc_sample_num)
-
-#     loss_dist = torch.abs(torch.sum(loss_dist).real)    
-
-#     print("loop ends")
-
-#     return loss_dist
-
-def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim,
-                   state_bound_lo, state_bound_hi, padded_dimension, p, model, device):
-
     kae = model
+    loss_dist = 0
     tol = 1e-12
 
-    # --- eigenvalue filtering ---
+    def is_real(z, tol=1e-12):
+        return abs(z.imag) <= tol
+
     rep_idxs = []
     for i, lam in enumerate(current_eig):
-        if lam.imag > tol or abs(lam.imag) <= tol:
+        if lam.imag > tol:
             rep_idxs.append(i)
-    if len(rep_idxs) == 0:
-        return torch.zeros(1, device=device, dtype=torch.float32)
+        elif is_real(lam, tol):
+            rep_idxs.append(i)
 
-    # --- preallocation ---
-    mc = loss_dist_mc_sample_num
-    rand = torch.empty(mc, obs_dim, device=device).uniform_()
-    rand.mul_(state_bound_hi - state_bound_lo).add_(state_bound_lo)
-    pad = torch.ones(mc, padded_dimension - obs_dim, device=device)
-    aug_input = torch.cat((rand, pad), dim=1)
+    print("loop start")
 
-    # single forward call
-    _, z_all, _ = kae(aug_input)
-    z_all_T = z_all.T.contiguous()  # [latent_dim, mc]
+    for a, i in enumerate(rep_idxs):
+        for j in rep_idxs[a+1:]:
+            loss_dist_temp = torch.zeros(1).to(device)
+            loss_dist_temp_1 = torch.zeros(1).to(device)
+            loss_dist_temp_2 = torch.zeros(1).to(device)
+            # print(loss_dist_temp, loss_dist_temp_1, loss_dist_temp_2)
 
-    # preallocate for accumulation
-    loss_dist = torch.zeros((), device=device, dtype=torch.complex64)
-    zero_scalar = torch.zeros((), device=device, dtype=torch.complex64)
+            for k in range(0,loss_dist_mc_sample_num):
+                random_input_loss_dist = torch.rand(1, obs_dim, device=device) * (state_bound_hi - state_bound_lo) + state_bound_lo
+                pad_in_loss_dist = torch.ones(random_input_loss_dist.size(0), padded_dimension - obs_dim, device=device)
+                aug_input_loss_dist = torch.cat([random_input_loss_dist, pad_in_loss_dist], dim=1)
+                _,z_loss_dist,_ = kae(aug_input_loss_dist)
 
-    # use local vars to reduce lookups
-    sdm = stt_decompose_mode
-    rep_len = len(rep_idxs)
-    rng = range
-    kaeref = kae
+                loss_dist_temp_1 = stt_decompose_mode(kae, z_loss_dist.T,_, i, p, propagation = True)
+                loss_dist_temp_2 = stt_decompose_mode(kae, z_loss_dist.T,_, j, p, propagation = True)
+                loss_dist_temp = loss_dist_temp + loss_dist_temp_1*loss_dist_temp_2.conj()
 
-    # --- nested loops (same logic, faster execution) ---
-    for a in rng(rep_len):
-        i = rep_idxs[a]
-        for j in rep_idxs[a + 1:]:
-            acc = zero_scalar.clone()
-            # inner loop optimized with tensor slicing, no realloc
-            for k in rng(mc):
-                z_loss_dist = z_all_T[:, k:k + 1]  # shape [latent_dim, 1]
-                l1 = sdm(kaeref, z_loss_dist, None, i, p, propagation=True)
-                l2 = sdm(kaeref, z_loss_dist, None, j, p, propagation=True)
-                acc += (l1 * l2.conj()).sum()
-            loss_dist += acc / mc
+            loss_dist = loss_dist + (loss_dist_temp/loss_dist_mc_sample_num)
 
-    # --- final reduction to real scalar ---
-    loss_dist = torch.abs(loss_dist).real.to(torch.float32)
+    loss_dist = torch.abs(torch.sum(loss_dist).real)    
+
+    print("loop ends")
+
     return loss_dist
+
+# def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim,
+#                    state_bound_lo, state_bound_hi, padded_dimension, p, model, device):
+
+#     kae = model
+#     tol = 1e-12
+
+#     # --- eigenvalue filtering ---
+#     rep_idxs = []
+#     for i, lam in enumerate(current_eig):
+#         if lam.imag > tol or abs(lam.imag) <= tol:
+#             rep_idxs.append(i)
+#     if len(rep_idxs) == 0:
+#         return torch.zeros(1, device=device, dtype=torch.float32)
+
+#     # --- preallocation ---
+#     mc = loss_dist_mc_sample_num
+#     rand = torch.empty(mc, obs_dim, device=device).uniform_()
+#     rand.mul_(state_bound_hi - state_bound_lo).add_(state_bound_lo)
+#     pad = torch.ones(mc, padded_dimension - obs_dim, device=device)
+#     aug_input = torch.cat((rand, pad), dim=1)
+
+#     # single forward call
+#     _, z_all, _ = kae(aug_input)
+#     z_all_T = z_all.T.contiguous()  # [latent_dim, mc]
+
+#     # preallocate for accumulation
+#     loss_dist = torch.zeros((), device=device, dtype=torch.complex64)
+#     zero_scalar = torch.zeros((), device=device, dtype=torch.complex64)
+
+#     # use local vars to reduce lookups
+#     sdm = stt_decompose_mode
+#     rep_len = len(rep_idxs)
+#     rng = range
+#     kaeref = kae
+
+#     # --- nested loops (same logic, faster execution) ---
+#     for a in rng(rep_len):
+#         i = rep_idxs[a]
+#         for j in rep_idxs[a + 1:]:
+#             acc = zero_scalar.clone()
+#             # inner loop optimized with tensor slicing, no realloc
+#             for k in rng(mc):
+#                 z_loss_dist = z_all_T[:, k:k + 1]  # shape [latent_dim, 1]
+#                 l1 = sdm(kaeref, z_loss_dist, None, i, p, propagation=True)
+#                 l2 = sdm(kaeref, z_loss_dist, None, j, p, propagation=True)
+#                 acc += (l1 * l2.conj()).sum()
+#             loss_dist += acc / mc
+
+#     # --- final reduction to real scalar ---
+#     loss_dist = torch.abs(loss_dist).real.to(torch.float32)
+#     return loss_dist
 
 
 def compute_l_task(model, inputs, true_output, criterion, max_reward, device):
@@ -298,46 +298,16 @@ def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_di
 
     return mode_output[:, :act_dim].real
 
-# def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
-#     ko = kae.K
-#     eigvals, eigvec_left = torch.linalg.eig(ko.T)
-#     eigvals = eigvals.conj().T
-#     eigvec_left = eigvec_left.conj().T
-#     eigvec_left_inv = torch.linalg.inv(eigvec_left)
-
-#     if propagation:
-#         B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
-#         v = (B @ eigvec_left_inv) # kae dim x encoder dim
-
-#         phi = eigvec_left @ z.to(torch.complex64)
-#         if conjugate:
-#             temp = ((eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]).conj()
-#         else:
-#             temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
-#     else:
-#         B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
-#         v = (B @ eigvec_left_inv) # kae dim x encoder dim
-
-#         phi = eigvec_left @ z_next.to(torch.complex64)
-#         if conjugate:
-#             temp = (phi[mode_number]*v[:,mode_number]).conj()
-#         else:
-#             temp = phi[mode_number]*v[:,mode_number]
-    
-#     mode_output = temp
-#     return mode_output
-
 def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
     ko = kae.K
     eigvals, eigvec_left = torch.linalg.eig(ko.T)
     eigvals = eigvals.conj().T
     eigvec_left = eigvec_left.conj().T
+    eigvec_left_inv = torch.linalg.inv(eigvec_left)
 
-    # use linear solve instead of explicit inverse
     if propagation:
-        B = kae.decoder.linear.weight.to(torch.complex64)
-        # v = (B @ eigvec_left_inv)
-        v = torch.linalg.solve(eigvec_left.T, B.T).T
+        B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
+        v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
         phi = eigvec_left @ z.to(torch.complex64)
         if conjugate:
@@ -345,18 +315,17 @@ def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conju
         else:
             temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
     else:
-        B = kae.decoder.linear.weight.to(torch.complex64)
-        v = torch.linalg.solve(eigvec_left.T, B.T).T
+        B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
+        v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
         phi = eigvec_left @ z_next.to(torch.complex64)
         if conjugate:
             temp = (phi[mode_number]*v[:,mode_number]).conj()
         else:
             temp = phi[mode_number]*v[:,mode_number]
-
+    
     mode_output = temp
     return mode_output
-
 
 def test_classifier(model, test_loader, device):
     model.eval()  # evaluation mode
