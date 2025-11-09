@@ -18,11 +18,11 @@ def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, model):
     Koopman losses with multi-step supervision.
     
     Args:
-        x             : [B, l]  current state
-        x_hat         : [B, l]  reconstruction of x
-        latent_x      : [B, z]
-        y_seq_states  : [B, m, l] true states for steps 1..m
-        y_seq_latents : [B, m, z] true latents for steps 1..m
+        x             : [B, pad_dim]  current state
+        x_hat         : [B, pad_dim]  reconstruction of x
+        latent_x      : [B, obv_dim]
+        y_seq_states  : [B, p, pad_dim] true states for steps 1..m
+        y_seq_latents : [B, p, obv_dim] true latents for steps 1..m
         p             : rollout horizon (p=1 = one step)
         model         : Koopman AE (must have model.K and model.decoder)
 
@@ -35,22 +35,21 @@ def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, model):
     recon_loss = mse_loss(x_hat, x)
     state_pred_loss = 0.0
     latent_pred_loss = 0.0
-    B, m, _ = y_seq_states.shape
-    m = min(p, m)   # don’t exceed what we have in data
+    B,_, _ = y_seq_states.shape
 
     # Precompute K powers
-    Ks = [torch.linalg.matrix_power(model.K.T, step) for step in range(1, p + 1)]
+    Ks = [torch.linalg.matrix_power(model.K, step) for step in range(1, p + 1)]
 
     # Roll forward in latent space
-    for k in range(m):
-        pred_lat_k = latent_x @ Ks[k]              # [B, z]
-        pred_x_k   = model.decoder(pred_lat_k)     # [B, l]
+    for k in range(p):
+        pred_lat_k = latent_x @ (Ks[k].T)              # [B, z]
+        pred_y_k   = model.decoder(pred_lat_k)     # [B, l]
 
-        state_pred_loss  += mse_loss(pred_x_k,   y_seq_states[:, k, :])
-        latent_pred_loss += mse_loss(pred_lat_k, y_seq_latents[:, k, :])
+        state_pred_loss  = state_pred_loss + mse_loss(pred_y_k,   y_seq_states[:, k, :])
+        latent_pred_loss = latent_pred_loss + mse_loss(pred_lat_k, y_seq_latents[:, k, :])
 
-    state_pred_loss  /= m
-    latent_pred_loss /= m
+    state_pred_loss  /= p
+    latent_pred_loss /= p
 
     return recon_loss, state_pred_loss, latent_pred_loss
 
@@ -73,6 +72,8 @@ def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p,
     B = aug_input.size(0)
     start = inner * batch_size
     end   = start + B
+    # print(aug_input_all.size())
+    # print(aug_output_all.size())
 
     # Current input batch
     x = aug_input.to(device).squeeze(1)        # [B, l]
@@ -88,12 +89,24 @@ def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p,
         _, latent_yk, _ = kae(yk)
         y_seq_states.append(yk)
         y_seq_latents.append(latent_yk)
+    
+    # y_seq_states: [1, batch_size, pad_dim]
+    # y_seq_stay_seq_latentstes: [1, batch_size, obv_dim]
 
     if not y_seq_states:
         raise RuntimeError("No future states available for multi-step supervision.")
+    
+    if len(y_seq_states) < p:
+        last_y  = y_seq_states[-1]
+        last_ly = y_seq_latents[-1]
+        for _ in range(p - len(y_seq_states)):
+            y_seq_states.append(last_y)
+            y_seq_latents.append(last_ly)
 
-    y_seq_states  = torch.stack(y_seq_states,  dim=1)  # [B, m, l]
-    y_seq_latents = torch.stack(y_seq_latents, dim=1)  # [B, m, z]
+    y_seq_states  = torch.stack(y_seq_states,  dim=1)  # [B, p, pad_dim]
+    y_seq_latents = torch.stack(y_seq_latents, dim=1)  # [B, p, obv_siz]
+
+    # print(y_seq_latents.size())
 
     # Update Koopman operator from first step
     # _, latent_x_all, _ = kae(aug_input_all)
@@ -277,7 +290,7 @@ def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_di
 
     # eigendecomposition of Kᵀ → left eigenvectors of K are rows of L
     eigvals, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
-    eigvals = eigvals.conj()                     # column eigenvalues of K
+    eigvals = eigvals.conj().T                     # column eigenvalues of K
     eigvec_left = eigvec_left.conj().T           # [observable_dim, observable_dim]
     eigvec_left_inv = torch.linalg.inv(eigvec_left)
 
