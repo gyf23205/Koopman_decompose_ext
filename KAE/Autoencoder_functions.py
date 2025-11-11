@@ -12,8 +12,41 @@ import torch.nn.functional as F
 from torch.fx import symbolic_trace
 import matplotlib.pyplot as plt
 
+def relative_mse_loss(x_hat, x, eps=1e-8):
+    """
+    Scale-free MSE that propagates gradients properly.
+    Computes ((x_hat - x) / (|x| + eps))^2 averaged over all elements.
+    """
+    rel_err = (x_hat - x) / (torch.abs(x) + eps)
+    return torch.mean(rel_err ** 2)
 
-def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, model):
+def cosine_mse_loss(x_hat, x):
+    cos_sim = F.cosine_similarity(x_hat, x, dim=-1)
+    return torch.mean(1 - cos_sim)  # equivalent to angular error
+
+def vector_norm_mse_loss(x_hat, x, eps=1e-8, scale=1.0):
+    x_hat, x = map(torch.as_tensor, (x_hat, x))
+    x_hat, x = x_hat / (x_hat.norm(dim=-1, keepdim=True) + eps), x / (x.norm(dim=-1, keepdim=True) + eps)
+    return ((x_hat - x) ** 2).mean() * scale
+
+def log_safe(x, eps=1e-8):
+    return torch.sign(x) * torch.log1p(torch.abs(x) + eps)
+
+def log_mse_loss(y_hat, y):
+    return torch.mean((log_safe(y_hat) - log_safe(y))**2)
+
+def barron_loss(y_hat, y, alpha=0.5, c=1.0, eps=1e-8):
+    x2 = ((y_hat - y) / c) ** 2
+    alpha_t = torch.as_tensor(alpha, dtype=y_hat.dtype, device=y_hat.device)
+    two = torch.as_tensor(2.0, dtype=y_hat.dtype, device=y_hat.device)
+    abs_term = torch.abs(alpha_t - two) + eps
+    if alpha == 2:
+        loss = 0.5 * x2
+    else:
+        loss = (abs_term / alpha_t) * (((x2 / abs_term) + 1.0).pow(alpha_t / 2.0) - 1.0)
+    return loss.mean()
+
+def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, action_dim, model):
     """
     Koopman losses with multi-step supervision.
     
@@ -32,7 +65,9 @@ def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, model):
 
     # Reconstruction loss (x vs x_hat)
     mse_loss = nn.MSELoss()
+    # recon_loss = barron_loss(x_hat, x)
     recon_loss = mse_loss(x_hat, x)
+    action_loss = mse_loss(x_hat[:,:action_dim], x[:,:action_dim])
     state_pred_loss = 0.0
     latent_pred_loss = 0.0
     B,_, _ = y_seq_states.shape
@@ -43,15 +78,19 @@ def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, model):
     # Roll forward in latent space
     for k in range(p):
         pred_lat_k = latent_x @ (Ks[k].T)              # [B, z]
+        # pred_lat_k = (Ks[k])@latent_x.T   
         pred_y_k   = model.decoder(pred_lat_k)     # [B, l]
 
+        # state_pred_loss  = state_pred_loss + barron_loss(pred_y_k,   y_seq_states[:, k, :])
         state_pred_loss  = state_pred_loss + mse_loss(pred_y_k,   y_seq_states[:, k, :])
+        # latent_pred_loss = latent_pred_loss + barron_loss(pred_lat_k, y_seq_latents[:, k, :])
         latent_pred_loss = latent_pred_loss + mse_loss(pred_lat_k, y_seq_latents[:, k, :])
+
 
     state_pred_loss  /= p
     latent_pred_loss /= p
 
-    return recon_loss, state_pred_loss, latent_pred_loss
+    return recon_loss, state_pred_loss, latent_pred_loss, action_loss
 
 def convert_numpy_shape(input_data, return_tensor=True): # just to convert data shape
     reshaped_data = np.transpose(input_data, (2, 1, 0))  # (num_samples, time_steps, state_dim)
@@ -62,7 +101,7 @@ def convert_numpy_shape(input_data, return_tensor=True): # just to convert data 
         return reshaped_data 
 
 def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p, 
-            device, aug_input_all, aug_output_all, inner, batch_size):
+            device, aug_input_all, aug_output_all, inner, batch_size, action_dim):
     """
     Multi-step Koopman AE loss.
     - p = function-wise rollout horizon (p=1 = one-step)
@@ -114,12 +153,12 @@ def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p,
     # kae.compute_koopman_operator(latent_x_all, latent_y_all, device)
 
     # Compute losses
-    recon_loss, state_pred_loss, koopman_pred_loss = koopman_loss(
-        x, x_hat, latent_x, y_seq_states, y_seq_latents, p, kae
+    recon_loss, state_pred_loss, koopman_pred_loss, loss_action = koopman_loss(
+        x, x_hat, latent_x, y_seq_states, y_seq_latents, p, action_dim, kae
     )
 
     loss_kae = c1*recon_loss + c2*state_pred_loss + c3*koopman_pred_loss    
-    return loss_kae, latent_x
+    return loss_kae, loss_action
 
 # def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim, state_bound_lo, state_bound_hi, 
 #                    padded_dimension, p, model, device):
@@ -232,7 +271,7 @@ def compute_l_task(model, inputs, true_output, criterion, max_reward, device):
 
 def compute_theta_sub_all(kae, z, ko, n = 1):
     ko = torch.linalg.matrix_power(ko,n)
-    eigvals, eigvec_left = torch.linalg.eig(ko)
+    eigvals, eigvec_left = torch.linalg.eig(ko.T)
     eigvec_left = eigvec_left.real.detach()
     eigvec_left_inv = torch.linalg.pinv(eigvec_left)
     v = (kae.decoder(eigvec_left_inv)).T
@@ -240,42 +279,44 @@ def compute_theta_sub_all(kae, z, ko, n = 1):
     param_sub_all = v @ torch.diag(phi)
     return param_sub_all, eigvals
 
-def stt_decompose_reconstruction(kae, z, z_next, observable_dim, p, propagation = True):
-    ko = kae.K
-    if propagation:
-        eigvals, eigvec_left = torch.linalg.eig(ko.T)
-        eigvals = eigvals.conj().T
-        eigvec_left = eigvec_left.conj().T
-        eigvec_left_inv = torch.linalg.inv(eigvec_left)
-        B = kae.decoder.linear.weight.detach().clone()
-        B = B.to(torch.complex64)
-        v = (B @ eigvec_left_inv) # kae dim x encoder dim
+# def stt_decompose_reconstruction(kae, z, z_next, observable_dim, p, propagation = True):
+#     ko = kae.K
+#     if propagation:
+#         # eigvals, eigvec_left = torch.linalg.eig(ko.T)
+#         eigvals, eigvec_left = torch.linalg.eig(ko.T)
+#         eigvals = eigvals.conj().T
+#         eigvec_left = eigvec_left.conj().T
+#         eigvec_left_inv = torch.linalg.inv(eigvec_left)
+#         B = kae.decoder.linear.weight.detach().clone()
+#         B = B.to(torch.complex64)
+#         v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
-        phi = eigvec_left @ z.to(torch.complex64)
-        # print(eigvals.shape, phi.shape, v.shape)
-        # mode_output = v@phi@eigvals
-        for i in range(0,observable_dim):
-            if i == 0:
-                temp = (eigvals[0]**p)*phi[0]*v[:,0]
-            else:
-                temp = temp + (eigvals[i]**p)*phi[i]*v[:,i]
-        # mode_output = v*(eigvals*phi)
-    else:
-        _, eigvec_left = torch.linalg.eig(ko.T)
-        eigvec_left = eigvec_left.conj().T
-        eigvec_left_inv = torch.linalg.inv(eigvec_left)
-        B = kae.decoder.linear.weight.detach().clone()
-        B = B.to(torch.complex64)
-        v = (B @ eigvec_left_inv) # kae dim x encoder dim
+#         phi = eigvec_left @ z.to(torch.complex64)
+#         # print(eigvals.shape, phi.shape, v.shape)
+#         # mode_output = v@phi@eigvals
+#         for i in range(0,observable_dim):
+#             if i == 0:
+#                 temp = (eigvals[0]**p)*phi[0]*v[:,0]
+#             else:
+#                 temp = temp + (eigvals[i]**p)*phi[i]*v[:,i]
+#         # mode_output = v*(eigvals*phi)
+#     else:
+#         # _, eigvec_left = torch.linalg.eig(ko.T)
+#         _, eigvec_left = torch.linalg.eig(ko.T)
+#         eigvec_left = eigvec_left.conj().T
+#         eigvec_left_inv = torch.linalg.inv(eigvec_left)
+#         B = kae.decoder.linear.weight.detach().clone()
+#         B = B.to(torch.complex64)
+#         v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
-        phi = eigvec_left @ z_next.to(torch.complex64)
-        for i in range(0,observable_dim):
-            if i == 0:
-                temp = phi[0]*v[:,0]
-            else:
-                temp = temp + phi[i]*v[:,i]
-    mode_output = temp
-    return mode_output
+#         phi = eigvec_left @ z_next.to(torch.complex64)
+#         for i in range(0,observable_dim):
+#             if i == 0:
+#                 temp = phi[0]*v[:,0]
+#             else:
+#                 temp = temp + phi[i]*v[:,i]
+#     mode_output = temp
+#     return mode_output
 
 def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_dim, propagation = True):
     """
@@ -289,59 +330,81 @@ def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_di
     device = z.device
 
     # eigendecomposition of Kᵀ → left eigenvectors of K are rows of L
-    eigvals, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
-    eigvals = eigvals.conj().T                     # column eigenvalues of K
-    eigvec_left = eigvec_left.conj().T           # [observable_dim, observable_dim]
+    # eigvals, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
+    _, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
+
+    # G.T A = LeftEig G.T
+    # _, G = torch.linalg.eig(A.T)
+    # G.'T' = [l1.T, l2.T, ...], each l_i = row vec
+
+    eigvals, _ = torch.linalg.eig(kae.K.to(torch.complex64))
+    # eigvals = eigvals.conj().T                     # column eigenvalues of K
+    eigvec_left = eigvec_left.T           # [observable_dim, observable_dim]
     eigvec_left_inv = torch.linalg.inv(eigvec_left)
+
+
+    ##################################################################
 
     # decoder linear matrix
     B = kae.decoder.linear.weight.detach().clone().to(torch.complex64).to(device)  # [D, observable_dim]
     v = B @ eigvec_left_inv                    # [D, observable_dim]
 
-    # choose z or z_next depending on propagation flag
-    z_used = z if propagation else z_next
-    z_used = z_used.to(torch.complex64)
-
-    # φ_bi = l_i^H z_b → [B, observable_dim]
-    phi = torch.einsum("ij,bj->bi", eigvec_left, z_used)
+    # eq (21) → [B, observable_dim]
+    z = z.to(torch.complex64)
+    # print('z')
+    # print(z.size())
+    # print('eigvec_left')
+    # print(eigvec_left.size())
+    psi = z @ eigvec_left.T
+    psi = psi
+    # print('psi')
+    # print(psi.size())
+    # psi = torch.einsum("ij,bj->bi", eigvec_left, z)
 
     # compute each term v[:, i] * (λ_i**p * φ_bi) and sum across i
-    eig_pow = eigvals[:observable_dim] ** (p if propagation else 1)
-    mode_output = torch.einsum("bi,di->bd", phi * eig_pow, v[:, :observable_dim])
+    # eig_pow = eigvals[:observable_dim] ** (p if propagation else 1)
+    # mode_output = torch.einsum("bi,di->bd", psi * eig_pow, v[:, :observable_dim])
 
+    eig_pow = eigvals ** (p if propagation else 1)
+    # print('eig_pow')
+    # print(eig_pow.size())
+    mode_output = torch.einsum("bi,di->bd", psi * eig_pow, v)
+    # print('mode_ouput')
+    # print(mode_output.size())
     return mode_output[:, :act_dim].real
 
-# def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
-#     ko = kae.K
-#     eigvals, eigvec_left = torch.linalg.eig(ko.T)
-#     eigvals = eigvals.conj().T
-#     eigvec_left = eigvec_left.conj().T
-#     eigvec_left_inv = torch.linalg.inv(eigvec_left)
+# # def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
+# #     ko = kae.K
+# #     eigvals, eigvec_left = torch.linalg.eig(ko.T)
+# #     eigvals = eigvals.conj().T
+# #     eigvec_left = eigvec_left.conj().T
+# #     eigvec_left_inv = torch.linalg.inv(eigvec_left)
 
-#     if propagation:
-#         B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
-#         v = (B @ eigvec_left_inv) # kae dim x encoder dim
+# #     if propagation:
+# #         B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
+# #         v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
-#         phi = eigvec_left @ z.to(torch.complex64)
-#         if conjugate:
-#             temp = ((eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]).conj()
-#         else:
-#             temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
-#     else:
-#         B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
-#         v = (B @ eigvec_left_inv) # kae dim x encoder dim
+# #         phi = eigvec_left @ z.to(torch.complex64)
+# #         if conjugate:
+# #             temp = ((eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]).conj()
+# #         else:
+# #             temp = (eigvals[mode_number]**p)*phi[mode_number]*v[:,mode_number]
+# #     else:
+# #         B = kae.decoder.linear.weight.detach().clone().to(torch.complex64)
+# #         v = (B @ eigvec_left_inv) # kae dim x encoder dim
 
-#         phi = eigvec_left @ z_next.to(torch.complex64)
-#         if conjugate:
-#             temp = (phi[mode_number]*v[:,mode_number]).conj()
-#         else:
-#             temp = phi[mode_number]*v[:,mode_number]
+# #         phi = eigvec_left @ z_next.to(torch.complex64)
+# #         if conjugate:
+# #             temp = (phi[mode_number]*v[:,mode_number]).conj()
+# #         else:
+# #             temp = phi[mode_number]*v[:,mode_number]
     
-#     mode_output = temp
-#     return mode_output
+# #     mode_output = temp
+# #     return mode_output
 
 def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
     ko = kae.K
+    # eigvals, eigvec_left = torch.linalg.eig(ko.T)
     eigvals, eigvec_left = torch.linalg.eig(ko.T)
     eigvals = eigvals.conj().T
     eigvec_left = eigvec_left.conj().T

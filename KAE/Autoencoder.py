@@ -15,8 +15,7 @@ class Encoder(nn.Module):
             nn.Tanh(),
             nn.Linear(hidden_dim*2, hidden_dim),
             nn.Tanh(),
-            nn.Linear(hidden_dim, observable_dim),
-            nn.Tanh()
+            nn.Linear(hidden_dim, observable_dim)
         )
     
 
@@ -74,17 +73,25 @@ class Encoder_walk(nn.Module):
 
         print('walking Tanh ver')
         self.encoder = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim*4),
-            nn.Tanh(),
-            nn.Linear(hidden_dim*4, hidden_dim*3),
+            nn.Linear(state_dim, hidden_dim*3),
             nn.Tanh(),
             nn.Linear(hidden_dim*3, hidden_dim*2),
             nn.Tanh(),
             nn.Linear(hidden_dim*2, hidden_dim),
             nn.Tanh(),
-            nn.Linear(hidden_dim, observable_dim),
-            nn.Tanh()
+            nn.Linear(hidden_dim, observable_dim)
         )
+
+        # print('walking Relu ver')
+        # self.encoder = nn.Sequential(
+        #     nn.Linear(state_dim, hidden_dim*3),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim*3, hidden_dim*2),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim*2, hidden_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim, observable_dim)
+        # )
 
         # print('Walking deep Tanh ver')
         # self.encoder = nn.Sequential(
@@ -102,26 +109,45 @@ class Encoder_walk(nn.Module):
         #     # nn.Tanh(),
         #     nn.Linear(hidden_dim*2, hidden_dim),
         #     nn.Tanh(),
-        #     # nn.Linear(hidden_dim, hidden_dim),
-        #     # nn.Tanh(),
+        #     nn.Linear(hidden_dim, hidden_dim),
+        #     nn.Tanh(),
         #     nn.Linear(hidden_dim, observable_dim),
-        #     nn.Tanh()
+        # )
+
+        # print('Walking deep Relu ver')
+        # self.encoder = nn.Sequential(
+        #     nn.Linear(state_dim, hidden_dim*4),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim*4, hidden_dim*4),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim*4, hidden_dim*3),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim*3, hidden_dim*3),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim*3, hidden_dim*2),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim*2, hidden_dim*2),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim*2, hidden_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim, hidden_dim),
+        #     nn.ReLU(),
+        #     nn.Linear(hidden_dim, observable_dim)
         # )
 
         # print('Tanh rev ver')
         # self.encoder = nn.Sequential(
         #     nn.Linear(state_dim, hidden_dim*2),
         #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*2, hidden_dim*2),
-        #     nn.Tanh(),
+        #     # nn.Linear(hidden_dim*2, hidden_dim*2),
+        #     # nn.Tanh(),
         #     nn.Linear(hidden_dim*2, hidden_dim*3),
         #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*3, hidden_dim*3),
-        #     nn.Tanh(),
+        #     # nn.Linear(hidden_dim*3, hidden_dim*3),
+        #     # nn.Tanh(),
         #     nn.Linear(hidden_dim*3, hidden_dim*4),
         #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*4, observable_dim),
-        #     nn.Tanh()
+        #     nn.Linear(hidden_dim*4, observable_dim)
         # )
 
     def forward(self, x):
@@ -187,24 +213,32 @@ class NormalizationLayer(nn.Module):
         x_norm = torch.cat([x_obs_norm, x_pad], dim=1)
         return x_norm
 
-class OutputNormalizationLayer(nn.Module):
-    def __init__(self, lo: torch.Tensor, hi: torch.Tensor, act_dim: int, mode="[-1,1]"):
+# class OutputNormalizationLayer(nn.Module):
+#     def __init__(self, lo: torch.Tensor, hi: torch.Tensor, act_dim: int, mode="[-1,1]"):
+#         super().__init__()
+#         self.register_buffer("lo", lo)
+#         self.register_buffer("hi", hi)
+#         self.register_buffer("range", (hi - lo).clamp(min=1e-8))
+#         self.mode = mode
+#         self.act_dim = act_dim
+
+#     def forward(self, z: torch.Tensor):
+#         if self.mode == "[-1,1]":
+#             z[:, :self.act_dim] = 2 * (z[:, :self.act_dim] - self.lo) / self.range - 1
+#         elif self.mode == "[0,1]":
+#             z[:, :self.act_dim] = (z[:, :self.act_dim] - self.lo) / self.range
+#         else:
+#             raise ValueError("mode must be '[-1,1]' or '[0,1]'")
+
+#         return z
+
+class ScaleAwareHead(nn.Module):
+    def __init__(self, dim):
         super().__init__()
-        self.register_buffer("lo", lo)
-        self.register_buffer("hi", hi)
-        self.register_buffer("range", (hi - lo).clamp(min=1e-8))
-        self.mode = mode
-        self.act_dim = act_dim
+        self.scale = nn.Parameter(torch.ones(dim))  # learnable scale per output element
 
-    def forward(self, z: torch.Tensor):
-        if self.mode == "[-1,1]":
-            z[:, :self.act_dim] = 2 * (z[:, :self.act_dim] - self.lo) / self.range - 1
-        elif self.mode == "[0,1]":
-            z[:, :self.act_dim] = (z[:, :self.act_dim] - self.lo) / self.range
-        else:
-            raise ValueError("mode must be '[-1,1]' or '[0,1]'")
-
-        return z
+    def forward(self, x):
+        return self.scale * x  # model can shrink/enlarge each dimension
 
 class KoopmanAutoencoder_walk(nn.Module):
     def __init__(self, state_dim, hidden_dim, observable_dim, device, state_bound_lo, state_bound_hi, output_bound_lo, output_bound_hi, obs_dim=235, act_dim = 12):
@@ -212,10 +246,11 @@ class KoopmanAutoencoder_walk(nn.Module):
 
         # --- Normalization layer ---
         self.normalizer = NormalizationLayer(state_bound_lo, state_bound_hi, obs_dim)
-        self.output_normalizer = OutputNormalizationLayer(output_bound_lo, output_bound_hi, act_dim)
+        # self.output_normalizer = OutputNormalizationLayer(output_bound_lo, output_bound_hi, act_dim)
 
         self.encoder = Encoder_walk(state_dim, hidden_dim, observable_dim)
         self.decoder = Decoder(observable_dim, state_dim)
+        self.scaler = ScaleAwareHead(state_dim)
         self.state_dim = state_dim
         self.hidden_dim = hidden_dim
         self.observable_dim = observable_dim
@@ -224,7 +259,7 @@ class KoopmanAutoencoder_walk(nn.Module):
     
     def forward(self, x):
 
-        # x = self.normalizer(x)
+        x = self.normalizer(x)
         z = self.encoder(x)  
 
         # if self.K is not None:
@@ -233,9 +268,10 @@ class KoopmanAutoencoder_walk(nn.Module):
             # z_next = z  
 
         y_hat = self.decoder(z_next)
+        # y_hat = self.scaler(y_hat_)
+
         x_hat = self.decoder(z)  
-        # y_hat = self.output_normalizer(y_hat)
-        # x_hat = self.output_normalizer(x_hat)
+        # x_hat = self.scaler(x_hat_)
         return x_hat, z, y_hat
     
         
@@ -275,55 +311,58 @@ class KoopmanAutoencoder_walk(nn.Module):
         # self.K = K_T.T                         # [d, d]
 
         latent_X = latent_X.view(-1, latent_X.size(-1))  # [N, d]
+        latent_X = latent_X.T # [d, N]
         latent_Y = latent_Y.view(-1, latent_Y.size(-1))  # [N, d]
+        latent_Y = latent_Y.T
         # X_pseudo_inv = torch.linalg.pinv(latent_X.T)  # Compute pseudo-inverse of latent_X
         # self.K = latent_Y.T @ X_pseudo_inv
-        self.K = torch.linalg.pinv(latent_X) @ latent_Y
+        self.K = latent_Y @ torch.linalg.pinv(latent_X, rcond=1e-5)
         
 
-class KoopmanAutoencoder_walk_tf(nn.Module):
-    def __init__(self, state_dim, hidden_dim, observable_dim, num_layer, head_dim, device):
-        super(KoopmanAutoencoder_walk_tf, self).__init__()
-        self.encoder = Encoder_tf(state_dim, hidden_dim, observable_dim, num_layers=num_layer, num_heads = head_dim)
-        self.decoder = Decoder(observable_dim, state_dim)
-        self.state_dim = state_dim
-        self.hidden_dim = hidden_dim
-        self.observable_dim = observable_dim
-        # self.K = torch.randn(hidden_dim+state_dim, hidden_dim+state_dim)  
-        self.K = torch.randn(observable_dim, observable_dim).to(device)  
+# class KoopmanAutoencoder_walk_tf(nn.Module):
+#     def __init__(self, state_dim, hidden_dim, observable_dim, num_layer, head_dim, device):
+#         super(KoopmanAutoencoder_walk_tf, self).__init__()
+#         self.encoder = Encoder_tf(state_dim, hidden_dim, observable_dim, num_layers=num_layer, num_heads = head_dim)
+#         self.decoder = Decoder(observable_dim, state_dim)
+#         self.state_dim = state_dim
+#         self.hidden_dim = hidden_dim
+#         self.observable_dim = observable_dim
+#         # self.K = torch.randn(hidden_dim+state_dim, hidden_dim+state_dim)  
+#         self.K = torch.randn(observable_dim, observable_dim).to(device)  
     
-    def forward(self, x):
+#     def forward(self, x):
 
-        z = self.encoder(x)  
+#         z = self.encoder(x)  
 
-        if self.K is not None:
-            z_next = torch.matmul(z, self.K.T)  # Apply computed Koopman operator
-        else:
-            z_next = z  
+#         if self.K is not None:
+#             z_next = torch.matmul(z, self.K.T)  # Apply computed Koopman operator
+#         else:
+#             z_next = z  
 
-        y_hat = self.decoder(z_next)
-        x_hat = self.decoder(z)  
-        return x_hat, z, y_hat
+#         y_hat = self.decoder(z_next)
+#         x_hat = self.decoder(z)  
+#         return x_hat, z, y_hat
     
         
-    def compute_koopman_operator(self, latent_X, latent_Y, device):
-        latent_X = latent_X.view(-1, latent_X.size(-1))  # [N, d]
-        latent_Y = latent_Y.view(-1, latent_Y.size(-1))  # [N, d]
-        X_pseudo_inv = torch.linalg.pinv(latent_X.T)  # Compute pseudo-inverse of latent_X
-        self.K = latent_Y.T @ X_pseudo_inv
+#     def compute_koopman_operator(self, latent_X, latent_Y, device):
+#         latent_X = latent_X.view(-1, latent_X.size(-1))  # [N, d]
+#         latent_Y = latent_Y.view(-1, latent_Y.size(-1))  # [N, d]
+#         # X_pseudo_inv = torch.linalg.pinv(latent_X.T)  # Compute pseudo-inverse of latent_X
+#         # self.K = latent_Y.T @ X_pseudo_inv
+#         self.K = torch.linalg.pinv(latent_X) @ latent_Y
 
-class Original_network(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.Linear(235, 512),
-            nn.ELU(alpha=1.0),
-            nn.Linear(512, 256),
-            nn.ELU(alpha=1.0),
-            nn.Linear(256, 128),
-            nn.ELU(alpha=1.0),
-            nn.Linear(128, 12)
-        )
+# class Original_network(nn.Module):
+#     def __init__(self):
+#         super().__init__()
+#         self.model = nn.Sequential(
+#             nn.Linear(235, 512),
+#             nn.ELU(alpha=1.0),
+#             nn.Linear(512, 256),
+#             nn.ELU(alpha=1.0),
+#             nn.Linear(256, 128),
+#             nn.ELU(alpha=1.0),
+#             nn.Linear(128, 12)
+#         )
 
-    def forward(self, x):
-        return self.model(x)
+#     def forward(self, x):
+#         return self.model(x)
