@@ -333,16 +333,9 @@ def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_di
     device = z.device
 
     # eigendecomposition of Kᵀ → left eigenvectors of K are rows of L
-    # eigvals, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
-    _, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
-
-    # G.T A = LeftEig G.T
-    # _, G = torch.linalg.eig(A.T)
-    # G.'T' = [l1.T, l2.T, ...], each l_i = row vec
-
-    eigvals, _ = torch.linalg.eig(kae.K.to(torch.complex64))
-    # eigvals = eigvals.conj().T                     # column eigenvalues of K
-    eigvec_left = eigvec_left.T           # [observable_dim, observable_dim]
+    eigvals, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
+    eigvals = eigvals.conj().T                     # column eigenvalues of K
+    eigvec_left = eigvec_left.conj().T          # [observable_dim, observable_dim]
     eigvec_left_inv = torch.linalg.inv(eigvec_left)
 
 
@@ -354,26 +347,15 @@ def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_di
 
     # eq (21) → [B, observable_dim]
     z = z.to(torch.complex64)
-    # print('z')
-    # print(z.size())
-    # print('eigvec_left')
-    # print(eigvec_left.size())
-    psi = z @ eigvec_left.T
-    psi = psi
-    # print('psi')
-    # print(psi.size())
-    # psi = torch.einsum("ij,bj->bi", eigvec_left, z)
+    # psi = z @ eigvec_left.T
+    # psi = psi
+    psi = torch.einsum("ij,bj->bi", eigvec_left, z)
 
     # compute each term v[:, i] * (λ_i**p * φ_bi) and sum across i
-    # eig_pow = eigvals[:observable_dim] ** (p if propagation else 1)
-    # mode_output = torch.einsum("bi,di->bd", psi * eig_pow, v[:, :observable_dim])
+    eig_pow = eigvals[:observable_dim] ** (p if propagation else 1)
+    mode_output = torch.einsum("bi,di->bd", psi * eig_pow, v[:, :observable_dim])
 
-    eig_pow = eigvals ** (p if propagation else 1)
-    # print('eig_pow')
-    # print(eig_pow.size())
-    mode_output = torch.einsum("bi,di->bd", psi * eig_pow, v)
-    # print('mode_ouput')
-    # print(mode_output.size())
+
     return mode_output[:, :act_dim].real
 
 # # def stt_decompose_mode(kae, z, z_next, mode_number, p, propagation = True, conjugate = False):
