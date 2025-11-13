@@ -67,9 +67,9 @@ def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, action_dim,
     mse_loss = nn.MSELoss()
     # recon_loss = barron_loss(x_hat, x)
     recon_loss = mse_loss(x_hat, x)
-    action_loss = mse_loss(x_hat[:,:action_dim], x[:,:action_dim])
     state_pred_loss = 0.0
     latent_pred_loss = 0.0
+    action_loss = 0.0
     B,_, _ = y_seq_states.shape
 
     # Precompute K powers
@@ -85,10 +85,13 @@ def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, action_dim,
         state_pred_loss  = state_pred_loss + mse_loss(pred_y_k,   y_seq_states[:, k, :])
         # latent_pred_loss = latent_pred_loss + barron_loss(pred_lat_k, y_seq_latents[:, k, :])
         latent_pred_loss = latent_pred_loss + mse_loss(pred_lat_k, y_seq_latents[:, k, :])
+        action_loss = action_loss + mse_loss(pred_y_k[:,:action_dim], y_seq_states[:, k, :action_dim])
 
 
     state_pred_loss  /= p
     latent_pred_loss /= p
+    action_loss /= p
+    
 
     return recon_loss, state_pred_loss, latent_pred_loss, action_loss
 
