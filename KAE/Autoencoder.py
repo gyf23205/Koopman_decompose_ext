@@ -310,7 +310,7 @@ class ScaleAwareHead(nn.Module):
         return self.scale * x  # model can shrink/enlarge each dimension
 
 class KoopmanAutoencoder_walk(nn.Module):
-    def __init__(self, state_dim, hidden_dim, observable_dim, device, state_bound_lo, state_bound_hi, output_bound_lo, output_bound_hi, obs_dim=235, act_dim = 12):
+    def __init__(self, state_dim, hidden_dim, observable_dim, device):
         super(KoopmanAutoencoder_walk, self).__init__()
 
         # --- Normalization layer ---

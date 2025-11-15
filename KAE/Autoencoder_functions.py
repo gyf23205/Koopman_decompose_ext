@@ -59,8 +59,11 @@ def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, action_dim,
         p             : rollout horizon (p=1 = one step)
         model         : Koopman AE (must have model.K and model.decoder)
 
+    where....
+        B = batch size
+
     Returns:
-        recon_loss, state_pred_loss, latent_pred_loss
+        recon_loss, state_pred_loss, latent_pred_loss, loss_Action
     """
 
     # Reconstruction loss (x vs x_hat)
@@ -81,11 +84,15 @@ def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, action_dim,
         # pred_lat_k = (Ks[k])@latent_x.T   
         pred_y_k   = model.decoder(pred_lat_k)     # [B, l]
 
-        # state_pred_loss  = state_pred_loss + barron_loss(pred_y_k,   y_seq_states[:, k, :])
         state_pred_loss  = state_pred_loss + mse_loss(pred_y_k,   y_seq_states[:, k, :])
-        # latent_pred_loss = latent_pred_loss + barron_loss(pred_lat_k, y_seq_latents[:, k, :])
         latent_pred_loss = latent_pred_loss + mse_loss(pred_lat_k, y_seq_latents[:, k, :])
-        action_loss = action_loss + mse_loss(pred_y_k[:,:action_dim], y_seq_states[:, k, :action_dim])
+
+        # loss_action will only take output argument pair, i.e., the last step one.
+        if k == p-1:
+            action_loss = action_loss + mse_loss(pred_y_k[:,:action_dim], y_seq_states[:, k, :action_dim])
+            # print('last step')
+        # else:
+            # print('pre step')
 
 
     state_pred_loss  /= p
@@ -337,9 +344,6 @@ def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_di
     eigvals = eigvals.conj().T                     # column eigenvalues of K
     eigvec_left = eigvec_left.conj().T          # [observable_dim, observable_dim]
     eigvec_left_inv = torch.linalg.inv(eigvec_left)
-
-
-    ##################################################################
 
     # decoder linear matrix
     B = kae.decoder.linear.weight.detach().clone().to(torch.complex64).to(device)  # [D, observable_dim]
