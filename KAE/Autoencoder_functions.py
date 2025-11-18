@@ -341,7 +341,7 @@ def stt_decompose_reconstruction_isaac(kae, z, z_next, observable_dim, p, act_di
 
     # eigendecomposition of Kᵀ → left eigenvectors of K are rows of L
     eigvals, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
-    eigvals = eigvals.conj().T                     # column eigenvalues of K
+    eigvals = eigvals.conj()                  # column eigenvalues of K
     eigvec_left = eigvec_left.conj().T          # [observable_dim, observable_dim]
     eigvec_left_inv = torch.linalg.inv(eigvec_left)
 
