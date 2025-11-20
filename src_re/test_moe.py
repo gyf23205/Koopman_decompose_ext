@@ -56,7 +56,7 @@ if __name__ == "__main__":
     # x_hat, z, z_pred = kae(params_traj)
     # N_O = z.shape[-1]
     # param_sub_all, eigvals = compute_theta_sub_all(kae, z, kae.K)
-    moe = CartpoleMLP(obs_dim, 6).to(device)
+    moe = CartpoleMLP(obs_dim, 6).to(device) # 6 = number of actions + number of observables
     # moe = MoE(obs_dim, num_experts=n_dom_modes, num_layers=num_layers).to(device)
     moe.load_state_dict(torch.load("saved_models_re/MoEs/moe_cartpole_mlp_retrain_value_spin_{}layers.pt".format(num_layers)))
     moe.eval()
@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
             weights = F.softmax(moe(obs_tensor), dim=-1)
             # extends = torch.diag(torch.ones(act_dim, dtype=weights.dtype, device=weights.device)).tile(1, 1, 1)
-            probs = torch.sum(weights.view(1, n_dom_modes, 1) * extended_experts_outputs, dim=1)
+            probs = torch.sum(weights.view(1, N_O + act_dim, 1) * extended_experts_outputs, dim=1)
             # # weights = torch.ones_like(weights)
             # # sparse_weights = weights  # Using original weights without top-k sparsification
             
