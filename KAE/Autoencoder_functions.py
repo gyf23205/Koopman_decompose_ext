@@ -97,7 +97,7 @@ def koopman_loss(x, x_hat, latent_x, y_seq_states, y_seq_latents, p, action_dim,
 
     state_pred_loss  /= p
     latent_pred_loss /= p
-    action_loss /= p
+    action_loss 
     
 
     return recon_loss, state_pred_loss, latent_pred_loss, action_loss
