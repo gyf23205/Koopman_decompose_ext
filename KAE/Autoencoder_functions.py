@@ -237,30 +237,53 @@ def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim
 
     # single forward call
     _, z_all, _ = kae(aug_input)
-    z_all_T = z_all.T.contiguous()  # [latent_dim, mc]
+    z_all = z_all.T.contiguous()  # [latent_dim, mc]
 
-    # preallocate for accumulation
-    loss_dist = torch.zeros((), device=device, dtype=torch.complex64)
-    zero_scalar = torch.zeros((), device=device, dtype=torch.complex64)
-
-    # use local vars to reduce lookups
-    sdm = stt_decompose_mode
+    # --- Pre-compute eigendecomposition ONCE ---
+    ko = kae.K
+    eigvals, eigvec_left = torch.linalg.eig(ko.T)
+    eigvals = eigvals.conj().T
+    eigvec_left = eigvec_left.conj().T
+    
+    # Pre-compute decoder transformation
+    B = kae.decoder.linear.weight.to(torch.complex64)
+    v = torch.linalg.solve(eigvec_left.T, B.T).T  # [output_dim, latent_dim]
+    
+    # Pre-compute phi for all MC samples: [latent_dim, mc]
+    phi_all = eigvec_left @ z_all.to(torch.complex64)  # [latent_dim, mc]
+    
+    # Pre-compute eigenvalue powers
+    eig_pow = eigvals ** p  # [latent_dim]
+    
+    # --- VECTORIZED computation: eliminate innermost loop ---
+    rep_idxs_t = torch.tensor(rep_idxs, device=device, dtype=torch.long)
     rep_len = len(rep_idxs)
-    rng = range
-    kaeref = kae
-
-    # --- nested loops (same logic, faster execution) ---
-    for a in rng(rep_len):
-        i = rep_idxs[a]
-        for j in rep_idxs[a + 1:]:
-            acc = zero_scalar.clone()
-            # inner loop optimized with tensor slicing, no realloc
-            for k in rng(mc):
-                z_loss_dist = z_all_T[:, k:k + 1]  # shape [latent_dim, 1]
-                l1 = sdm(kaeref, z_loss_dist, None, i, p, propagation=True)
-                l2 = sdm(kaeref, z_loss_dist, None, j, p, propagation=True)
-                acc += (l1 * l2.conj()).sum()
-            loss_dist += acc / mc
+    
+    # Compute all mode decompositions at once for all MC samples and all modes
+    # l_i = v[:, i] * (λ_i^p * φ_i)  for all i in rep_idxs, all MC samples
+    # Shape: [num_rep_modes, output_dim, mc]
+    eig_pow_rep = eig_pow[rep_idxs_t].unsqueeze(1).unsqueeze(2)  # [rep_len, 1, 1]
+    phi_rep = phi_all[rep_idxs_t, :]  # [rep_len, mc]
+    v_rep = v[:, rep_idxs_t]  # [output_dim, rep_len]
+    
+    # Compute l_modes: [rep_len, output_dim, mc]
+    l_modes = v_rep.T.unsqueeze(2) * (eig_pow_rep * phi_rep.unsqueeze(1))
+    
+    # Compute pairwise inner products
+    loss_dist = torch.zeros((), device=device, dtype=torch.complex64)
+    
+    for a in range(rep_len):
+        if a + 1 >= rep_len:
+            break
+        # l1: [output_dim, mc]
+        l1 = l_modes[a, :, :]  
+        # l2_batch: [rep_len - a - 1, output_dim, mc]
+        l2_batch = l_modes[a + 1:, :, :]
+        
+        # Compute inner products: sum over output_dim, then average over mc
+        # (l1 * conj(l2)).sum(dim=output_dim).mean(dim=mc)
+        inner_prods = (l1.unsqueeze(0) * l2_batch.conj()).sum(dim=1).mean(dim=1)  # [rep_len - a - 1]
+        loss_dist += inner_prods.sum()
 
     # --- final reduction to real scalar ---
     loss_dist = torch.abs(loss_dist).real.to(torch.float32)

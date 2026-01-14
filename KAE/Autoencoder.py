@@ -88,20 +88,6 @@ class Encoder_walk(nn.Module):
         super(Encoder_walk, self).__init__()
         # sin_act = act = Sin(omega_0=30.0, learnable=True)
 
-        # print('walking sin ver')
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(state_dim, hidden_dim*4),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*4, hidden_dim*3),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*3, hidden_dim*2),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*2, hidden_dim),
-        #     sin_act,
-        #     nn.Linear(hidden_dim, observable_dim),
-        #     sin_act
-        # )
-
         print('walking Tanh ver')
         self.encoder = nn.Sequential(
             nn.Linear(state_dim, hidden_dim*4),
@@ -115,109 +101,6 @@ class Encoder_walk(nn.Module):
             nn.Linear(hidden_dim, observable_dim)
         )
 
-        # print('walking Relu ver')
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(state_dim, hidden_dim*3),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim*3, hidden_dim*2),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim*2, hidden_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim, observable_dim)
-        # )
-
-        # print('Walking deep Tanh ver')
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(state_dim, hidden_dim*4),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*4, hidden_dim*4),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*4, hidden_dim*3),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*3, hidden_dim*3),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*3, hidden_dim*2),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*2, hidden_dim*2),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*2, hidden_dim),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim, hidden_dim),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim, observable_dim),
-        # )
-
-        # print('Walking deep sin ver')
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(state_dim, hidden_dim*4),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*4, hidden_dim*4),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*4, hidden_dim*3),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*3, hidden_dim*3),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*3, hidden_dim*2),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*2, hidden_dim*2),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*2, hidden_dim),
-        #     sin_act,
-        #     nn.Linear(hidden_dim, hidden_dim),
-        #     sin_act,
-        #     nn.Linear(hidden_dim, observable_dim),
-        # )
-
-        # print('Walking deep Relu ver')
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(state_dim, hidden_dim*4),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim*4, hidden_dim*4),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim*4, hidden_dim*3),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim*3, hidden_dim*3),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim*3, hidden_dim*2),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim*2, hidden_dim*2),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim*2, hidden_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim, hidden_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim, observable_dim)
-        # )
-
-        # print('Tanh rev ver')
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(state_dim, hidden_dim*2),
-        #     nn.Tanh(),
-        #     # nn.Linear(hidden_dim*2, hidden_dim*2),
-        #     # nn.Tanh(),
-        #     nn.Linear(hidden_dim*2, hidden_dim*3),
-        #     nn.Tanh(),
-        #     # nn.Linear(hidden_dim*3, hidden_dim*3),
-        #     # nn.Tanh(),
-        #     nn.Linear(hidden_dim*3, hidden_dim*4),
-        #     nn.Tanh(),
-        #     nn.Linear(hidden_dim*4, observable_dim)
-        # )
-
-        # print('sin rev ver')
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(state_dim, hidden_dim*2),
-        #     sin_act,
-        #     # nn.Linear(hidden_dim*2, hidden_dim*2),
-        #     # sin_act,
-        #     nn.Linear(hidden_dim*2, hidden_dim*3),
-        #     sin_act,
-        #     # nn.Linear(hidden_dim*3, hidden_dim*3),
-        #     # sin_act,
-        #     nn.Linear(hidden_dim*3, hidden_dim*4),
-        #     sin_act,
-        #     nn.Linear(hidden_dim*4, observable_dim)
-        # )
 
     def forward(self, x):
         return self.encoder(x)
@@ -332,6 +215,8 @@ class KoopmanAutoencoder_walk(nn.Module):
         z = self.encoder(x)  
 
         # if self.K is not None:
+        # print(z.size())
+        # print(self.K.size())
         z_next = torch.matmul(z, self.K.T)  # Apply computed Koopman operator
         # else:
             # z_next = z  
