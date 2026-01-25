@@ -170,137 +170,230 @@ def compute_l_kae(kae, aug_input, aug_output, c1, c2, c3, p,
     loss_kae = c1*recon_loss + c2*state_pred_loss + c3*koopman_pred_loss    
     return loss_kae, loss_action
 
-# def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim, state_bound_lo, state_bound_hi, 
-#                    padded_dimension, p, model, device):
-    
+# def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim,
+#                    state_bound_lo, state_bound_hi, padded_dimension, p, model, device):
+
 #     kae = model
-#     loss_dist = 0
 #     tol = 1e-12
 
-#     def is_real(z, tol=1e-12):
-#         return abs(z.imag) <= tol
-
+#     # --- eigenvalue filtering ---
 #     rep_idxs = []
 #     for i, lam in enumerate(current_eig):
-#         if lam.imag > tol:
+#         if lam.imag > tol or abs(lam.imag) <= tol:
 #             rep_idxs.append(i)
-#         elif is_real(lam, tol):
-#             rep_idxs.append(i)
+#     if len(rep_idxs) == 0:
+#         return torch.zeros(1, device=device, dtype=torch.float32)
 
-#     print("loop start")
+#     # --- preallocation ---
+#     mc = loss_dist_mc_sample_num
+#     rand = torch.empty(mc, obs_dim, device=device).uniform_()
+#     rand.mul_(state_bound_hi - state_bound_lo).add_(state_bound_lo)
+#     pad = torch.ones(mc, padded_dimension - obs_dim, device=device)
+#     aug_input = torch.cat((rand, pad), dim=1)
 
-#     for a, i in enumerate(rep_idxs):
-#         for j in rep_idxs[a+1:]:
-#             loss_dist_temp = torch.zeros(1).to(device)
-#             loss_dist_temp_1 = torch.zeros(1).to(device)
-#             loss_dist_temp_2 = torch.zeros(1).to(device)
-#             # print(loss_dist_temp, loss_dist_temp_1, loss_dist_temp_2)
+#     # single forward call
+#     _, z_all, _ = kae(aug_input)
+#     z_all = z_all.T.contiguous()  # [latent_dim, mc]
 
-#             for k in range(0,loss_dist_mc_sample_num):
-#                 random_input_loss_dist = torch.rand(1, obs_dim, device=device) * (state_bound_hi - state_bound_lo) + state_bound_lo
-#                 pad_in_loss_dist = torch.ones(random_input_loss_dist.size(0), padded_dimension - obs_dim, device=device)
-#                 aug_input_loss_dist = torch.cat([random_input_loss_dist, pad_in_loss_dist], dim=1)
-#                 _,z_loss_dist,_ = kae(aug_input_loss_dist)
+#     # --- Pre-compute eigendecomposition ONCE ---
+#     ko = kae.K
+#     eigvals, eigvec_left = torch.linalg.eig(ko.T)
+#     eigvals = eigvals.conj().T
+#     eigvec_left = eigvec_left.conj().T
+    
+#     # Pre-compute decoder transformation
+#     B = kae.decoder.linear.weight.to(torch.complex64)
+#     v = torch.linalg.solve(eigvec_left.T, B.T).T  # [output_dim, latent_dim]
+    
+#     # Pre-compute phi for all MC samples: [latent_dim, mc]
+#     phi_all = eigvec_left @ z_all.to(torch.complex64)  # [latent_dim, mc]
+    
+#     # Pre-compute eigenvalue powers
+#     eig_pow = eigvals ** p  # [latent_dim]
+    
+#     # --- VECTORIZED computation: eliminate innermost loop ---
+#     rep_idxs_t = torch.tensor(rep_idxs, device=device, dtype=torch.long)
+#     rep_len = len(rep_idxs)
+    
+#     # Compute all mode decompositions at once for all MC samples and all modes
+#     # l_i = v[:, i] * (λ_i^p * φ_i)  for all i in rep_idxs, all MC samples
+#     # Shape: [num_rep_modes, output_dim, mc]
+#     eig_pow_rep = eig_pow[rep_idxs_t].unsqueeze(1).unsqueeze(2)  # [rep_len, 1, 1]
+#     phi_rep = phi_all[rep_idxs_t, :]  # [rep_len, mc]
+#     v_rep = v[:, rep_idxs_t]  # [output_dim, rep_len]
+    
+#     # Compute l_modes: [rep_len, output_dim, mc]
+#     l_modes = v_rep.T.unsqueeze(2) * (eig_pow_rep * phi_rep.unsqueeze(1))
+    
+#     # Compute pairwise inner products
+#     loss_dist = torch.zeros((), device=device, dtype=torch.complex64)
+    
+#     for a in range(rep_len):
+#         if a + 1 >= rep_len:
+#             break
+#         # l1: [output_dim, mc]
+#         l1 = l_modes[a, :, :]  
+#         # l2_batch: [rep_len - a - 1, output_dim, mc]
+#         l2_batch = l_modes[a + 1:, :, :]
+        
+#         # Compute inner products: sum over output_dim, then average over mc
+#         # (l1 * conj(l2)).sum(dim=output_dim).mean(dim=mc)
+#         inner_prods = (l1.unsqueeze(0) * l2_batch.conj()).sum(dim=1).mean(dim=1)  # [rep_len - a - 1]
+#         loss_dist += inner_prods.sum()
 
-#                 loss_dist_temp_1 = stt_decompose_mode(kae, z_loss_dist.T,_, i, p, propagation = True)
-#                 loss_dist_temp_2 = stt_decompose_mode(kae, z_loss_dist.T,_, j, p, propagation = True)
-#                 loss_dist_temp = loss_dist_temp + loss_dist_temp_1*loss_dist_temp_2.conj()
-
-#             loss_dist = loss_dist + (loss_dist_temp/loss_dist_mc_sample_num)
-
-#     loss_dist = torch.abs(torch.sum(loss_dist).real)    
-
-#     print("loop ends")
-
+#     # --- final reduction to real scalar ---
+#     loss_dist = torch.abs(loss_dist).real.to(torch.float32)
 #     return loss_dist
 
-def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim,
-                   state_bound_lo, state_bound_hi, padded_dimension, p, model, device):
-
-    kae = model
-    tol = 1e-12
-
-    # --- eigenvalue filtering ---
-    rep_idxs = []
-    for i, lam in enumerate(current_eig):
-        if lam.imag > tol or abs(lam.imag) <= tol:
-            rep_idxs.append(i)
-    if len(rep_idxs) == 0:
-        return torch.zeros(1, device=device, dtype=torch.float32)
-
-    # --- preallocation ---
-    mc = loss_dist_mc_sample_num
-    rand = torch.empty(mc, obs_dim, device=device).uniform_()
-    rand.mul_(state_bound_hi - state_bound_lo).add_(state_bound_lo)
-    pad = torch.ones(mc, padded_dimension - obs_dim, device=device)
-    aug_input = torch.cat((rand, pad), dim=1)
-
-    # single forward call
-    _, z_all, _ = kae(aug_input)
-    z_all = z_all.T.contiguous()  # [latent_dim, mc]
-
-    # --- Pre-compute eigendecomposition ONCE ---
-    ko = kae.K
-    eigvals, eigvec_left = torch.linalg.eig(ko.T)
-    eigvals = eigvals.conj().T
-    eigvec_left = eigvec_left.conj().T
+def compute_l_dist(observable_dim, current_eig, loss_dist_mc_sample_num, obs_dim, state_bound_lo, state_bound_hi, 
+                   padded_dimension, p, kae, device, sample_from_fit_pdf=False, mu=None, Sigma=None):
+    """
+    Compute mode distance loss using MC integration.
     
-    # Pre-compute decoder transformation
-    B = kae.decoder.linear.weight.to(torch.complex64)
-    v = torch.linalg.solve(eigvec_left.T, B.T).T  # [output_dim, latent_dim]
+    Args:
+        sample_from_fit_pdf: If True, sample from fitted multivariate normal distribution
+        mu: Mean vector for multivariate normal (required if sample_from_fit_pdf=True)
+        Sigma: Covariance matrix for multivariate normal (required if sample_from_fit_pdf=True)
+    """
+    loss_dist = 0.0
     
-    # Pre-compute phi for all MC samples: [latent_dim, mc]
-    phi_all = eigvec_left @ z_all.to(torch.complex64)  # [latent_dim, mc]
-    
-    # Pre-compute eigenvalue powers
-    eig_pow = eigvals ** p  # [latent_dim]
-    
-    # --- VECTORIZED computation: eliminate innermost loop ---
-    rep_idxs_t = torch.tensor(rep_idxs, device=device, dtype=torch.long)
-    rep_len = len(rep_idxs)
-    
-    # Compute all mode decompositions at once for all MC samples and all modes
-    # l_i = v[:, i] * (λ_i^p * φ_i)  for all i in rep_idxs, all MC samples
-    # Shape: [num_rep_modes, output_dim, mc]
-    eig_pow_rep = eig_pow[rep_idxs_t].unsqueeze(1).unsqueeze(2)  # [rep_len, 1, 1]
-    phi_rep = phi_all[rep_idxs_t, :]  # [rep_len, mc]
-    v_rep = v[:, rep_idxs_t]  # [output_dim, rep_len]
-    
-    # Compute l_modes: [rep_len, output_dim, mc]
-    l_modes = v_rep.T.unsqueeze(2) * (eig_pow_rep * phi_rep.unsqueeze(1))
-    
-    # Compute pairwise inner products
-    loss_dist = torch.zeros((), device=device, dtype=torch.complex64)
-    
-    for a in range(rep_len):
-        if a + 1 >= rep_len:
-            break
-        # l1: [output_dim, mc]
-        l1 = l_modes[a, :, :]  
-        # l2_batch: [rep_len - a - 1, output_dim, mc]
-        l2_batch = l_modes[a + 1:, :, :]
+    if sample_from_fit_pdf:
+        # Sample from fitted multivariate normal distribution
+        if mu is None or Sigma is None:
+            raise ValueError("mu and Sigma must be provided when sample_from_fit_pdf=True")
         
-        # Compute inner products: sum over output_dim, then average over mc
-        # (l1 * conj(l2)).sum(dim=output_dim).mean(dim=mc)
-        inner_prods = (l1.unsqueeze(0) * l2_batch.conj()).sum(dim=1).mean(dim=1)  # [rep_len - a - 1]
-        loss_dist += inner_prods.sum()
-
-    # --- final reduction to real scalar ---
-    loss_dist = torch.abs(loss_dist).real.to(torch.float32)
+        from torch.distributions import MultivariateNormal
+        dist = MultivariateNormal(mu, Sigma)
+        random_samples = dist.sample((loss_dist_mc_sample_num,)).to(device)  # [loss_dist_mc_sample_num, obs_dim]
+    else:
+        # Sample uniformly from bounds
+        random_samples = torch.rand(loss_dist_mc_sample_num, obs_dim, device=device) * (state_bound_hi - state_bound_lo) + state_bound_lo
+    
+    # Pad samples
+    pad_sample = torch.ones(random_samples.size(0), padded_dimension - obs_dim, device=device)
+    aug_samples = torch.cat([random_samples, pad_sample], dim=1)
+    
+    _, latent_samples, _ = kae(aug_samples)
+    
+    for i in range(observable_dim):
+        for j in range(i+1, observable_dim):
+            mode_i = latent_samples[:, i]
+            mode_j = latent_samples[:, j]
+            inner_product = torch.mean(mode_i * mode_j)
+            loss_dist += inner_product ** 2
+    
     return loss_dist
 
 
-def compute_l_task(model, inputs, true_output, criterion, max_reward, device):
-    x = inputs.squeeze(1).to(device)
-    y = true_output.squeeze(1).to(device)
-    _,_, outputs = model(x)
+# def compute_l_task(model, inputs, true_output, criterion, max_reward, device):
+#     x = inputs.squeeze(1).to(device)
+#     y = true_output.squeeze(1).to(device)
+#     _,_, outputs = model(x)
 
-    loss = criterion(outputs, y)
+#     loss = criterion(outputs, y)
 
-    # reward = test_cartpole_kae_function(model, hidden_k, padded_dimension, p, device, mode_number = -1, num_episodes = num_episodes, save_imgs = True)
-    # loss = criterion(reward, max_reward)
+#     # reward = test_cartpole_kae_function(model, hidden_k, padded_dimension, p, device, mode_number = -1, num_episodes = num_episodes, save_imgs = True)
+#     # loss = criterion(reward, max_reward)
 
-    return loss
+#     return loss
+
+def compute_task_loss_isaac(kae, z, act_dim, p, device):
+    """
+    Computes a task-specific loss to encourage Koopman modes to specialize in controlling different legs.
+
+    Args:
+        kae (torch.nn.Module): The Koopman Autoencoder model.
+        z (torch.Tensor): The latent state tensor, shape [B, observable_dim].
+        act_dim (int): The dimension of the action space (e.g., 12 for 4 legs).
+        p (int): The prediction horizon.
+        device (torch.device): The device to perform computations on.
+
+    Returns:
+        torch.Tensor: The calculated task loss.
+    """
+    observable_dim = kae.K.shape[0]
+    
+    # 1. Eigendecomposition of K.T to get left eigenvectors of K
+    # This logic is replicated from stt_decompose_reconstruction_isaac
+    try:
+        eigvals, eigvec_left = torch.linalg.eig(kae.K.T.to(torch.complex64))
+    except torch.linalg.LinAlgError:
+        return torch.tensor(0.0, device=device) # Return zero loss if decomposition fails
+
+    eigvals = eigvals.conj()
+    eigvec_left = eigvec_left.conj().T
+    
+    # Handle potential instability in inverse
+    eigvec_left_inv = torch.linalg.inv(eigvec_left)
+
+    # 2. Calculate Koopman modes (psi) and decoder transformation (v)
+    B = kae.decoder.linear.weight.detach().clone().to(torch.complex64).to(device)
+    v = B @ eigvec_left_inv
+    
+    z_complex = z.to(torch.complex64)
+    psi = torch.einsum("ij,bj->bi", eigvec_left, z_complex)
+
+    # 3. Get the output contribution of each mode
+    eig_pow = eigvals[:observable_dim] ** p
+    
+    # shape: [B, observable_dim, act_dim]
+    # For each batch item, for each mode, we get its contribution to the action vector
+    individual_mode_outputs = torch.einsum("bi,di->bdi", psi * eig_pow, v[:, :observable_dim])
+    individual_mode_outputs = individual_mode_outputs[:, :, :act_dim].real
+
+    # 4. Define leg joint indices
+    # Assumes 12-dim action space for a quadruped
+    # LF: [0, 4, 8], LH: [1, 5, 9], RF: [2, 6, 10], RH: [3, 7, 11]
+    leg_indices = [
+        [0, 4, 8], # Leg 0 (LF)
+        [1, 5, 9], # Leg 1 (LH)
+        [2, 6, 10],# Leg 2 (RF)
+        [3, 7, 11] # Leg 3 (RH)
+    ]
+    num_legs = len(leg_indices)
+    
+    total_task_loss = 0.0
+    mode_idx = 0
+    
+    # 5. Iterate through the first 4 effective modes and assign each to a leg
+    for leg_assignment_idx in range(num_legs):
+
+        # Check for conjugate pairs
+        # is_conjugate_pair = (mode_idx + 1 < observable_dim) and \
+        #                     (eigvals[mode_idx].imag != 0) and \
+        #                     (eigvals[mode_idx].conj() == eigvals[mode_idx+1])
+        is_conjugate_pair = (mode_idx + 1 < observable_dim) and (eigvals[mode_idx].imag != 0)
+        mode_output = individual_mode_outputs[:, mode_idx, :]
+
+        if is_conjugate_pair:
+            mode_idx += 2
+        else:
+            mode_idx += 1
+            
+        # # This mode is assigned to leg `leg_assignment_idx`.
+        # # Penalize its influence on all OTHER legs.
+        # loss_for_mode = 0.0
+        # for i in range(num_legs):
+        #     if i != leg_assignment_idx:
+        #         # Add the energy of the mode's output on the other legs to the loss
+        #         leg_energy = torch.linalg.norm(mode_output[:, leg_indices[i]], dim=1)
+        #         loss_for_mode += leg_energy
+
+        # total_task_loss += torch.mean(loss_for_mode)
+
+        # This mode is assigned to leg `leg_assignment_idx`.
+        # Penalize its influence on all OTHER legs.
+        all_indices = set(range(act_dim))
+        assigned_leg_indices = set(leg_indices[leg_assignment_idx])
+        other_leg_indices = sorted(list(all_indices - assigned_leg_indices))
+
+        # Calculate the norm of the output on all other legs at once
+        loss_for_mode = torch.linalg.norm(mode_output[:, other_leg_indices], dim=1)
+
+        total_task_loss += torch.mean(loss_for_mode)
+
+    return total_task_loss
+
 
 def compute_theta_sub_all(kae, z, ko, n = 1):
     ko = torch.linalg.matrix_power(ko,n)
