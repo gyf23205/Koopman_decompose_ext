@@ -9,3 +9,5 @@ saved_models/
 *.pt
 *.pth
 imgs_re/**
+outputs/**
+**.pyc
