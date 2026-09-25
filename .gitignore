@@ -11,3 +11,4 @@ saved_models/
 imgs_re/**
 outputs/**
 **.pyc
+*.egg-info/

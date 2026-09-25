@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kae-moe"
+version = "0.1.0"
+description = "Portable frozen Koopman controllers and hierarchical MoE runtime"
+requires-python = ">=3.10"
+dependencies = ["torch>=2.1"]
+
+[project.optional-dependencies]
+skrl = ["skrl>=1.4,<2"]
+notebook = ["numpy", "scipy", "matplotlib", "tqdm", "jupyter"]
+
+[tool.setuptools.packages.find]
+include = ["kae_moe*"]
